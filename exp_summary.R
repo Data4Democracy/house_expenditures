@@ -2,7 +2,13 @@ library(tidyr)
 library(purrr)
 library(dplyr)
 
-exp_summary <- function(df, summary_var) {
+# Function to summarise house expenditure data
+# 3 Arguments:
+### df: data frame of expenditures in the format as supplied by the load.R & clean.R files
+### summary_var: the variable which to group on (i.e. PAYEE or OFFICE)
+### as.df: default is set to true. If FALSE, a list for each quarter will be created.
+
+exp_summary <- function(df, summary_var, as.df = TRUE) {
   summarise_exp <- function(data_frame = NULL, ...) {
     data_frame %>% 
       group_by_(..., 'QUARTER') %>%
@@ -15,7 +21,16 @@ exp_summary <- function(df, summary_var) {
       )
   }
   
-  df %>% split(.$QUARTER) %>%
+  temp <- df %>% split(.$QUARTER) %>%
     map(~ .x %>% summary_exp(summary_var))
+  
+  if(as.df == TRUE) {
+    do.call("rbind", temp)
+  } else {
+      temp
+    }
+  
 }
+
+
 
