@@ -6,7 +6,7 @@ exp_summary <- function(df, summary_var) {
   summarise_exp <- function(data_frame = NULL, ...) {
     data_frame %>% 
       group_by_(..., 'QUARTER') %>%
-      summarise(yearly_exp = sum(AMOUNT),
+      summarise(qrtly_exp = sum(AMOUNT),
                 max_exp_cat = data_frame[which.max(data_frame[, 'AMOUNT']), "CATEGORY"],
                 max_exp = max(AMOUNT),
                 min_exp = min(AMOUNT),
