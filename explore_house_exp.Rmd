@@ -1,0 +1,63 @@
+---
+title: "Exploring House Expenditures"
+output: html_notebook
+---
+```{r load packages}
+library(dplyr)
+```
+
+```{r load data}
+# Set up your working directory
+#setwd("~/Documents/github/house_expenditures")
+
+# Download and read Q3 detail files
+file_downloads <- c("https://pp-projects-static.s3.amazonaws.com/congress/staffers/2016Q3-house-disburse-detail.csv", 
+                    "https://pp-projects-static.s3.amazonaws.com/congress/staffers/2015Q3-house-disburse-detail.csv", 
+                    "https://pp-projects-static.s3.amazonaws.com/congress/staffers/2014Q3-house-disburse-detail.csv", 
+                    "https://pp-projects-static.s3.amazonaws.com/congress/staffers/2013Q3-house-disburse-detail.csv", 
+                    "https://pp-projects-static.s3.amazonaws.com/congress/staffers/2012Q3-house-disburse-detail.csv",
+                    "https://pp-projects-static.s3.amazonaws.com/congress/staffers/2011Q3-house-disburse-detail.csv",
+                    "https://pp-projects-static.s3.amazonaws.com/congress/staffers/2010Q3-house-disburse-detail.csv",
+                    "https://pp-projects-static.s3.amazonaws.com/congress/staffers/2009Q3-house-disburse-detail.csv"
+)
+
+alldata <- lapply(file_downloads, function(x) {read.csv(x, stringsAsFactors = F)})
+
+df <- do.call(rbind, alldata) # Combine into one dataset
+```
+
+```{r clean data}
+# Change class and remove commas
+df$AMOUNT <- as.numeric(gsub(",", "", df$AMOUNT))
+
+# Convert date variables to dates
+df$START.DATE <- as.Date(df$START.DATE, format = "%m/%d/%y")
+df$END.DATE <- as.Date(df$END.DATE, format = "%m/%d/%y")
+```
+
+```{r load functions}
+# What is the total yearly expenditure for an office during the Q3 measurement?
+by_office <- df %>%
+  group_by(OFFICE, QUARTER) %>%
+  summarise("yearly_exp" = sum(AMOUNT))
+
+officeYearly <- function(office) {
+  by_office[by_office$OFFICE == office, ]
+}
+
+# What is the total yearly expenditure paid to a payee during the Q3 measurement?
+by_payee <- df %>%
+  group_by(PAYEE, QUARTER) %>%
+  summarise("yearly_exp" = sum(AMOUNT))
+
+payeeYearly <- function(payee) {
+  by_payee[by_payee$PAYEE == payee, ]
+}
+```
+
+## Example
+
+What are the historical third quarter totals for ADMIN AND OPS?
+```{r}
+officeYearly("ADMIN AND OPS")
+```
