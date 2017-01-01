@@ -72,7 +72,7 @@ files <- lapply(file_downloads, function (x) {
   })
 
 # Convert to dataframe
-expend.df <- do.call('rbind', listy)
+expend.df <- do.call('rbind', files)
 
 # Peek into the data
 glimpse(expend.df)
