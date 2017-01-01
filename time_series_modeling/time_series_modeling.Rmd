@@ -242,8 +242,6 @@ ggplot(confident.changepoints, aes(x = obs, y = trend/1000000, group = 1)) +
        subtitle = 'Dots represent significant changes in the underlying trend component \nsignifying unexpected swing in the measure.') + 
   theme(legend.position = 'none',
         axis.text.x = element_blank())
-
-ggsave('government_expenditures.png', type = 'cairo-png')
 ```
 
 <h2><b> Iterate Across All Departments </b></h2>
