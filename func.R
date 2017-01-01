@@ -14,6 +14,7 @@ by_payee <- df %>%
   group_by(PAYEE, QUARTER) %>%
   summarise("yearly_exp" = sum(AMOUNT))
 
-payeeYearly <- function(payee) {
-  by_payee[by_payee$PAYEE == payee, ]
-}
+# The payee field needs to be cleaned up before this becomes useful
+#payeeYearly <- function(payee) {
+#  by_payee[by_payee$PAYEE == payee, ]
+#}
