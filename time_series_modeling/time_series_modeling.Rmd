@@ -1,0 +1,307 @@
+---
+output: 
+  rmarkdown::html_document:
+    theme: flatly
+---
+
+<h2><b> ANALYZING HOUSE EXPENDITURES </b></h2>
+
+```{r, load packages and set themes, echo=FALSE, message=FALSE, results='hide', warning=FALSE}
+
+# Load packages
+library(plyr, quietly = TRUE)
+library(dplyr, quietly = TRUE)
+library(lubridate, quietly = TRUE)
+library(data.table, quietly = TRUE)
+library(bcp, quietly = TRUE)
+library(ggplot2, quietly = TRUE)
+library(ggthemes, quietly = TRUE)
+library(extrafont, quietly = TRUE)
+library(scales, quietly = TRUE)
+library(plotly, quietly = TRUE)
+
+# Set plot theme
+theme_set(
+  theme_bw(base_family = 'Segoe UI', base_size = 12) +
+    theme(
+      plot.title = element_text(face = 'bold', hjust = 0),
+      text = element_text(colour = '#445359'),
+      panel.background = element_rect('#ffffff'),
+      strip.background = element_rect('#ffffff', colour = 'white'),
+      plot.background = element_rect('#ffffff'),
+      panel.border = element_rect(colour = '#ffffff'),
+      panel.grid.major.x = element_blank(),
+      panel.grid.major.y = element_blank(),
+      panel.grid.minor.y = element_blank(),
+      legend.background = element_rect('#ffffff'),
+      legend.title = element_blank(),
+      legend.position = 'right',
+      legend.direction = 'vertical',
+      legend.key = element_blank(),
+      strip.text = element_text(face = 'bold', size = 10),
+      axis.text = element_text(face = 'bold', size = 9),
+      axis.title = element_blank(),
+      axis.ticks = element_blank()
+    )
+)
+
+```
+
+<h2><b> Load Data & Clean </b></h2>
+
+```{r, load data & clean, echo=FALSE, message=FALSE, results='hide', warning=FALSE}
+
+## Download Q3 Detail Files
+
+# List files
+file_downloads <- c("https://pp-projects-static.s3.amazonaws.com/congress/staffers/2016Q3-house-disburse-detail.csv", 
+"https://pp-projects-static.s3.amazonaws.com/congress/staffers/2015Q3-house-disburse-detail.csv", 
+"https://pp-projects-static.s3.amazonaws.com/congress/staffers/2014Q3-house-disburse-detail.csv", 
+"https://pp-projects-static.s3.amazonaws.com/congress/staffers/2013Q3-house-disburse-detail.csv", 
+"https://pp-projects-static.s3.amazonaws.com/congress/staffers/2012Q3-house-disburse-detail.csv",
+"https://pp-projects-static.s3.amazonaws.com/congress/staffers/2011Q3-house-disburse-detail.csv",
+"https://pp-projects-static.s3.amazonaws.com/congress/staffers/2010Q3-house-disburse-detail.csv",
+"https://pp-projects-static.s3.amazonaws.com/congress/staffers/2009Q3-house-disburse-detail.csv"
+)
+
+# Read in each file
+files <- lapply(file_downloads, function (x) { 
+  
+  read.csv(x, header = TRUE, stringsAsFactors = FALSE)
+  
+  })
+
+# Convert to dataframe
+expend.df <- do.call('rbind', listy)
+
+# Peek into the data
+glimpse(expend.df)
+
+```
+
+<h2><b> Manipulating The Data </b></h2>
+
+
+```{r, manipulate data, echo=FALSE, message=FALSE, results='hide', warning=FALSE}
+
+# Convert start and end date to dates
+expend.df$START.DATE <- mdy(expend.df$START.DATE)
+expend.df$END.DATE <- mdy(expend.df$END.DATE)
+
+# Convert amount to numeric
+expend.df$AMOUNT <- as.numeric(gsub(',', '', expend.df$AMOUNT))
+
+# Re-arrange the df to run dates along rows and office along columns
+expend.cast <- dcast(expend.df, 
+                     START.DATE + END.DATE ~ OFFICE,
+                     value.var = 'AMOUNT',
+                     fun = sum)
+
+## Build Into Monthly Time Series
+
+# Re-define start dates
+expend.monthly.start <- expend.cast
+expend.monthly.start$START.DATE <- ymd(paste0(year(expend.cast$START.DATE), 
+                                              '-', 
+                                              month(expend.cast$START.DATE), 
+                                              '-', 
+                                              1))
+
+# Build monthly dataframe based on start dates
+expend.monthly.start <- expend.monthly.start %>% 
+  select(-END.DATE) %>% 
+  group_by(START.DATE) %>% 
+  summarise_each(funs(sum(., na.rm = TRUE)))
+
+# Remove anything beyond Dec 2015
+expend.monthly.start <- expend.monthly.start %>%
+  filter(START.DATE < '2016-01-01')
+
+
+# Re-define end dates
+expend.monthly.end <- expend.cast
+expend.monthly.end$END.DATE <- ymd(paste0(year(expend.cast$END.DATE), 
+                                              '-', 
+                                              month(expend.cast$END.DATE), 
+                                              '-', 
+                                              1))
+
+# Build monthly dataframe based on start dates
+expend.monthly.end <- expend.monthly.end %>% 
+  select(-START.DATE) %>% 
+  group_by(END.DATE) %>% 
+  summarise_each(funs(sum(., na.rm = TRUE)))
+
+# Remove anything beyond Dec 2015
+expend.monthly.end <- expend.monthly.end %>%
+  filter(END.DATE < '2016-01-01')
+
+
+```
+
+<h2><b> Testing on Government Contributions </b></h2>
+
+```{r, visualization, fig.width=6, fig.height=10}
+
+# Plot quarterly distributions (checking for seasonality)
+plot <- expend.monthly.start %>%
+  select(START.DATE, `GOVERNMENT CONTRIBUTIONS`) %>%
+  mutate('month.def' = lubridate::month(expend.monthly.start$START.DATE, label = TRUE)) %>%
+  ggplot(aes(x = month.def, y = `GOVERNMENT CONTRIBUTIONS`/1000000, group = month.def, text = START.DATE)) + 
+    geom_boxplot(colour = '#3672A3', outlier.colour = '#fd7d47') + 
+    scale_y_continuous(labels = comma) + 
+        labs(title = 'Monthly Distributions of Government Contributions', 
+           subtitle = 'Millions of Dollars')
+
+ggplotly(plot, tooltip = 'text')
+
+```
+```{r, structural decomposition}
+
+# Define seasonal, trend, and remaining structure of the data
+test.stl <- expend.monthly.start[, which(names(expend.monthly.start) == 'GOVERNMENT CONTRIBUTIONS')][[1]] %>%
+  ts(frequency = 12) %>%
+  stl(s.window = 'per')
+  
+# Plot the various structures of the data to visualize each component
+plot <- test.stl <- test.stl$time.series %>%
+  data.frame() %>%
+  mutate('month' = expend.monthly.start$START.DATE) %>%
+  melt(id.var = 'month') %>% 
+  ggplot(aes(x = month, y = value, group = variable)) +
+    geom_line(colour = '#3672A3') +
+    facet_wrap(~variable, nrow = 3, scales = 'free') + 
+    scale_y_continuous(labels = comma) + 
+    labs(title = 'Structural Decomposition of Government Contributions',
+         subtitle = 'Millions of Dollars')
+
+ggplotly(plot)
+
+```
+```{r, removing structural trend}
+
+# Define seasonal, trend, and remaining structure of the data
+test.stl <- expend.monthly.start[, which(names(expend.monthly.start) == 'GOVERNMENT CONTRIBUTIONS')][[1]] %>%
+  ts(frequency = 12) %>%
+  stl(s.window = 'per')
+
+# Pull out the trend component
+test.trend <- test.stl$time.series %>%
+  data.frame() %>% 
+  select(trend)
+
+# Adjust the series for its trend
+expend.monthly.start$trend.adj <- expend.monthly.start[, which(names(expend.monthly.start) == 'GOVERNMENT CONTRIBUTIONS')] - test.trend[,1]
+
+# Plot quarterly balance
+plot <- expend.monthly.start %>%
+  select(START.DATE, trend.adj) %>%
+  mutate('month.def' = lubridate::month(expend.monthly.start$START.DATE, label = TRUE)) %>%
+  ggplot(aes(x = month.def, y = trend.adj/1000000, group = month.def, text = START.DATE)) + 
+    geom_boxplot(colour = '#3672A3', outlier.colour = '#fd7d47') + 
+    scale_y_continuous(labels = comma) + 
+        labs(title = 'Monthly Distributions of Government Contributions', 
+           subtitle = 'Millions of Dollars')
+
+ggplotly(plot)
+
+plt <- expend.monthly.start %>%
+  select(START.DATE, `GOVERNMENT CONTRIBUTIONS`, trend.adj) %>%
+  ggplot(aes(x = START.DATE, y = `GOVERNMENT CONTRIBUTIONS`/1000000, group = 1)) + 
+    geom_line(colour = '#00aef0') + 
+    geom_line(data = expend.monthly.start %>% select(START.DATE, `GOVERNMENT CONTRIBUTIONS`, trend.adj),
+              aes(x = START.DATE, y = trend.adj/1000000, group = 1),
+              colour = '#ff8500') + 
+    scale_y_continuous(labels = comma) + 
+        labs(title = 'Monthly Distributions of Government Contributions', 
+           subtitle = 'Millions of Dollars')
+
+ggplotly(plt)
+
+```
+```{r, change point detection of trend variable}
+
+# Re-define the variable for change point detection
+trend.var <- test.trend[, 1]
+
+# Run bayesian changepoint detection
+set.seed(1620)
+bcp.trend <- bcp(trend.var)
+
+# Identify changepoints w/ probability > 50%
+confident.changepoints <- data.frame('obs' = seq(from = 1, to = length(trend.var), by = 1),
+                                     'trend' = trend.var,
+                                     'post' = bcp.trend$posterior.prob,
+                                     'likely.change' = ifelse(bcp.trend$posterior.prob > 0.5, 'yes', 'no'))
+
+ggplot(confident.changepoints, aes(x = obs, y = trend/1000000, group = 1)) + 
+  geom_line(colour = '#404040', alpha = 0.25) + 
+  geom_point(data = confident.changepoints, aes(x = obs, y = trend/1000000, group = likely.change, colour = likely.change)) + 
+  scale_colour_manual(values = c('transparent', '#ff8500')) + 
+  labs(title = 'Changepoints in Underlying Trend of \nGovernment Contribution Expenditures ($mlns)',
+       subtitle = 'Dots represent significant changes in the underlying trend component \nsignifying unexpected swing in the measure.') + 
+  theme(legend.position = 'none',
+        axis.text.x = element_blank())
+
+ggsave('government_expenditures.png', type = 'cairo-png')
+```
+
+<h2><b> Iterate Across All Departments </b></h2>
+
+```{r, iterate}
+
+## Iterative Across All Departments
+# -- Strip out trend component
+# -- Run changepoint detection on trend
+# -- Capture relevant info
+
+# Doing this as a loop because I have all night anyways
+expenditure.trends <- list()
+
+# Tract time
+start.time <- proc.time()
+
+for (i in 2:ncol(expend.monthly.start)) {
+  
+  if (i == ncol(expend.monthly.start)) { 
+    break
+  } else {
+    # Define seasonal, trend, and remaining structure of the data
+  df.stl <- expend.monthly.start[, i][[1]] %>%
+    ts(frequency = 12) %>%
+    stl(s.window = 'per')
+  
+  # Pull out the trend component
+  df.trend <- df.stl$time.series %>%
+    data.frame() %>% 
+    select(trend)
+  
+  # Re-define the variable for change point detection
+  trend.var <- df.trend[, 1]
+  
+  # Run bayesian changepoint detection
+  set.seed(1620)
+  bcp.trend <- bcp(trend.var)
+  
+  # Identify changepoints w/ probability > 50%
+  confident.changepoints <- data.frame('dept' = names(expend.monthly.start)[i],
+                                       'obs' = expend.monthly.start$START.DATE,
+                                       'trend' = trend.var,
+                                       'post' = bcp.trend$posterior.prob,
+                                       'likely.change' = ifelse(bcp.trend$posterior.prob > 0.5, 'yes', 'no'))
+  
+  expenditure.trends[[i]] <- confident.changepoints
+  
+  }
+}
+
+# Convert to dataframe
+expenditure.trends.changepoints <- do.call('rbind', expenditure.trends)
+
+# Tract final calc time
+proc.time() - start.time
+
+# Write file to csv
+write.csv(expenditure.trends.changepoints, 'trend_changepoints.csv', row.names = FALSE)
+
+```
