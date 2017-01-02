@@ -1,10 +1,14 @@
 ---
 title: "Exploring House Expenditures"
-output: html_notebook
+output:
+  html_document: default
+  html_notebook: default
 ---
 ```{r load packages}
-library(dplyr)
+library(dplyr, quietly = T)
 ```
+
+### Loading Data
 
 ```{r load data}
 # Set up your working directory
@@ -26,6 +30,12 @@ alldata <- lapply(file_downloads, function(x) {read.csv(x, stringsAsFactors = F)
 df <- do.call(rbind, alldata) # Combine into one dataset
 ```
 
+### Cleaning Data
+
+I removed the commas in the AMOUNT column and changed the START.DATE and END.DATE 
+columns to the date class. Dollar amounts were updated to reflect 2016 dollars as 
+found on [http://www.usinflationcalculator.com/](http://www.usinflationcalculator.com/).
+
 ```{r clean data}
 # Change class and remove commas
 df$AMOUNT <- as.numeric(gsub(",", "", df$AMOUNT))
@@ -33,7 +43,24 @@ df$AMOUNT <- as.numeric(gsub(",", "", df$AMOUNT))
 # Convert date variables to dates
 df$START.DATE <- as.Date(df$START.DATE, format = "%m/%d/%y")
 df$END.DATE <- as.Date(df$END.DATE, format = "%m/%d/%y")
+
+# Convert to 2016 dollars
+# q = quarter as character
+# r = inflation rate found on http://www.usinflationcalculator.com/
+convertDollars <- function(q, r) {
+ round(df$AMOUNT[df$QUARTER == q] + (df$AMOUNT[df$QUARTER == q] * r), 2)
+}
+
+df$AMOUNT[df$QUARTER == "2009Q3"] <- convertDollars("2009Q3", .125) #Convert 2009
+df$AMOUNT[df$QUARTER == "2010Q3"] <- convertDollars("2010Q3", .107) #Convert 2010
+df$AMOUNT[df$QUARTER == "2011Q3"] <- convertDollars("2011Q3", .073) #Convert 2011
+df$AMOUNT[df$QUARTER == "2012Q3"] <- convertDollars("2012Q3", .051) #Convert 2012
+df$AMOUNT[df$QUARTER == "2013Q3"] <- convertDollars("2013Q3", .036) #Convert 2013
+df$AMOUNT[df$QUARTER == "2014Q3"] <- convertDollars("2014Q3", .02) #Convert 2014
+df$AMOUNT[df$QUARTER == "2015Q3"] <- convertDollars("2015Q3", .018) #Convert 2015
 ```
+
+### Functions
 
 ```{r load functions}
 # What is the total yearly expenditure for an office during the Q3 measurement?
@@ -55,9 +82,10 @@ payeeYearly <- function(payee) {
 }
 ```
 
-## Example
+### Example
 
-What are the historical third quarter totals for ADMIN AND OPS?
+What are the historical third quarter totals for ADMIN AND OPS in 2016 dollars?
+
 ```{r}
 officeYearly("ADMIN AND OPS")
 ```
