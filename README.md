@@ -15,7 +15,12 @@ You can read more about this data set on [ProPublica's post](https://www.propubl
 ##Cleaning 
 
 I removed commas from the dollar amounts and converted the start and end dates to the date 
-format.  
+format. 
+
+_Update January 1, 2017, 9:44 PM_
+I added code in the cleaning section of explore_house_exp.Rmd to change 2009-2015 figures 
+to 2016 dollars using inflation rates I found on [http://www.usinflationcalculator.com/](http://www.usinflationcalculator.com/). 
+I only changed it in explore_house_exp.Rmd, not in clean.R.
 
 ##Next Steps
   
