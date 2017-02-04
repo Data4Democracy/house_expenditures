@@ -14,15 +14,15 @@ library(dplyr, quietly = T)
 # Set up your working directory
 #setwd("~/Documents/github/house_expenditures")
 
-# Download and read Q3 detail files
-file_downloads <- c("https://pp-projects-static.s3.amazonaws.com/congress/staffers/2016Q3-house-disburse-detail.csv", 
-                    "https://pp-projects-static.s3.amazonaws.com/congress/staffers/2015Q3-house-disburse-detail.csv", 
-                    "https://pp-projects-static.s3.amazonaws.com/congress/staffers/2014Q3-house-disburse-detail.csv", 
-                    "https://pp-projects-static.s3.amazonaws.com/congress/staffers/2013Q3-house-disburse-detail.csv", 
-                    "https://pp-projects-static.s3.amazonaws.com/congress/staffers/2012Q3-house-disburse-detail.csv",
-                    "https://pp-projects-static.s3.amazonaws.com/congress/staffers/2011Q3-house-disburse-detail.csv",
-                    "https://pp-projects-static.s3.amazonaws.com/congress/staffers/2010Q3-house-disburse-detail.csv",
-                    "https://pp-projects-static.s3.amazonaws.com/congress/staffers/2009Q3-house-disburse-detail.csv"
+# Download and read Q3 detail files from data.world
+file_downloads <- c("https://query.data.world/s/5o0xnjfh6iuo0kh62b1rzp8xf", #2016
+                    "https://query.data.world/s/a86tqnnfe16f03x6wuxk1z0g7", #2015
+                    "https://query.data.world/s/7gm9yyoh8zjffcdnlpboc12sd", #2014
+                    "https://query.data.world/s/3typrwb3pwd32jiqnusc5nfiw", #2013 
+                    "https://query.data.world/s/9kfxw5pfebclr3sjmqppwy4at", #2012
+                    "https://query.data.world/s/3fe96e3unm3pr0hw6ao9pynnd", #2011
+                    "https://query.data.world/s/ak20z1hk153nyrghsejfuazjz", #2010
+                    "https://query.data.world/s/30807xh494jhuk28slw6jhi1f"  #2009
 )
 
 alldata <- lapply(file_downloads, function(x) {read.csv(x, stringsAsFactors = F)})
@@ -56,7 +56,7 @@ df$AMOUNT[df$QUARTER == "2010Q3"] <- convertDollars("2010Q3", .107) #Convert 201
 df$AMOUNT[df$QUARTER == "2011Q3"] <- convertDollars("2011Q3", .073) #Convert 2011
 df$AMOUNT[df$QUARTER == "2012Q3"] <- convertDollars("2012Q3", .051) #Convert 2012
 df$AMOUNT[df$QUARTER == "2013Q3"] <- convertDollars("2013Q3", .036) #Convert 2013
-df$AMOUNT[df$QUARTER == "2014Q3"] <- convertDollars("2014Q3", .02) #Convert 2014
+df$AMOUNT[df$QUARTER == "2014Q3"] <- convertDollars("2014Q3", .02)  #Convert 2014
 df$AMOUNT[df$QUARTER == "2015Q3"] <- convertDollars("2015Q3", .018) #Convert 2015
 ```
 
