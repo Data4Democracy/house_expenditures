@@ -31,16 +31,13 @@ Team members detail the findings in a reproducible report that can be immediatel
 
 ## More About This Project
 The purpose of these scripts is to download third quarter data describing the 
-House of Representative's expenditures. Running do.R will load, combine, and clean
-all Q3 data.
+House of Representative's expenditures.
 
-You'll need to set your working directory.
+As much as possible, please link to the [data on our data.world House Expenditures 
+page](https://data.world/data4democracy/house-expenditures) when contributing to 
+this repo. 
 
-These data and the remaining quarters can be found here: 
-
-[https://projects.propublica.org/represent/expenditures](https://projects.propublica.org/represent/expenditures)
-
-You can read more about this data set on [ProPublica's post](https://www.propublica.org/article/update-on-house-disbursements-a-few-notes-on-how-to-use-the-data).  
+The original datasets and the remaining quarters can be found at [ProPublica](https://projects.propublica.org/represent/expenditures). You can read more about this data set on [ProPublica's post](https://www.propublica.org/article/update-on-house-disbursements-a-few-notes-on-how-to-use-the-data).  
 
 ### Cleaning 
 
