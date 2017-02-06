@@ -5,7 +5,8 @@ output:
   html_notebook: default
 ---
 ```{r load packages}
-library(dplyr, quietly = T)
+library(tidyverse, quietly = T)
+library(stringr, quietly = T)
 ```
 
 ### Loading Data
@@ -25,9 +26,14 @@ file_downloads <- c("https://query.data.world/s/5o0xnjfh6iuo0kh62b1rzp8xf", #201
                     "https://query.data.world/s/30807xh494jhuk28slw6jhi1f"  #2009
 )
 
-alldata <- lapply(file_downloads, function(x) {read.csv(x, stringsAsFactors = F)})
+alldata <- lapply(file_downloads, function(x) {
+  read_csv(x, col_types = cols(
+    `START DATE` = col_date(format = "%m/%d/%y"), 
+    `END DATE`   = col_date(format = "%m/%d/%y")
+    ))
+  })
 
-df <- do.call(rbind, alldata) # Combine into one dataset
+df <- bind_rows(alldata) # Combine into one dataset
 ```
 
 ### Cleaning Data
@@ -37,55 +43,69 @@ columns to the date class. Dollar amounts were updated to reflect 2016 dollars a
 found on [http://www.usinflationcalculator.com/](http://www.usinflationcalculator.com/).
 
 ```{r clean data}
-# Change class and remove commas
-df$AMOUNT <- as.numeric(gsub(",", "", df$AMOUNT))
-
-# Convert date variables to dates
-df$START.DATE <- as.Date(df$START.DATE, format = "%m/%d/%y")
-df$END.DATE <- as.Date(df$END.DATE, format = "%m/%d/%y")
-
 # Convert to 2016 dollars
-# q = quarter as character
+# a = dollar amoung
 # r = inflation rate found on http://www.usinflationcalculator.com/
-convertDollars <- function(q, r) {
- round(df$AMOUNT[df$QUARTER == q] + (df$AMOUNT[df$QUARTER == q] * r), 2)
+
+convertDollars <- function(a, r) {
+  round(a + (a * r), 2)
 }
 
-df$AMOUNT[df$QUARTER == "2009Q3"] <- convertDollars("2009Q3", .125) #Convert 2009
-df$AMOUNT[df$QUARTER == "2010Q3"] <- convertDollars("2010Q3", .107) #Convert 2010
-df$AMOUNT[df$QUARTER == "2011Q3"] <- convertDollars("2011Q3", .073) #Convert 2011
-df$AMOUNT[df$QUARTER == "2012Q3"] <- convertDollars("2012Q3", .051) #Convert 2012
-df$AMOUNT[df$QUARTER == "2013Q3"] <- convertDollars("2013Q3", .036) #Convert 2013
-df$AMOUNT[df$QUARTER == "2014Q3"] <- convertDollars("2014Q3", .02)  #Convert 2014
-df$AMOUNT[df$QUARTER == "2015Q3"] <- convertDollars("2015Q3", .018) #Convert 2015
+house_expenditures_clean <- df %>% 
+  mutate(`2016_dollars` = as.numeric("")) %>%
+  mutate(`2016_dollars` = if_else(
+    QUARTER == "2009Q3", convertDollars(AMOUNT, .125), `2016_dollars`)
+    ) %>% 
+  mutate(`2016_dollars` = if_else(
+    QUARTER == "2010Q3", convertDollars(AMOUNT, .107), `2016_dollars`)
+    ) %>% 
+  mutate(`2016_dollars` = if_else(
+    QUARTER == "2011Q3", convertDollars(AMOUNT, .073), `2016_dollars`)
+    ) %>% 
+  mutate(`2016_dollars` = if_else(
+    QUARTER == "2012Q3", convertDollars(AMOUNT, .051), `2016_dollars`)
+    ) %>% 
+  mutate(`2016_dollars` = if_else(
+    QUARTER == "2013Q3", convertDollars(AMOUNT, .036), `2016_dollars`)
+    ) %>% 
+  mutate(`2016_dollars` = if_else(
+    QUARTER == "2014Q3", convertDollars(AMOUNT, .02), `2016_dollars`)
+    ) %>% 
+  mutate(`2016_dollars` = if_else(
+    QUARTER == "2015Q3", convertDollars(AMOUNT, .018), `2016_dollars`)
+    ) %>%
+  mutate(`2016_dollars` = if_else(
+    QUARTER == "2016Q3", AMOUNT, `2016_dollars`)
+    ) %>%
+  select(BIOGUIDE_ID:AMOUNT, `2016_dollars`, everything())
 ```
 
 ### Functions
 
 ```{r load functions}
 # What is the total yearly expenditure for an office during the Q3 measurement?
-by_office <- df %>%
+by_office <- house_expenditures_clean %>%
   group_by(OFFICE, QUARTER) %>%
-  summarise("yearly_exp" = sum(AMOUNT))
+  summarise("yearly_exp" = sum(`2016_dollars`))
 
 officeYearly <- function(office) {
   by_office[by_office$OFFICE == office, ]
 }
 
 # What is the total yearly expenditure paid to a payee during the Q3 measurement?
-by_payee <- df %>%
+by_payee <- house_expenditures_clean %>%
   group_by(PAYEE, QUARTER) %>%
-  summarise("yearly_exp" = sum(AMOUNT))
+  summarise("yearly_exp" = sum(`2016_dollars`))
 
 payeeYearly <- function(payee) {
   by_payee[by_payee$PAYEE == payee, ]
 }
 ```
 
-### Example
+<!-- ### Example -->
 
-What are the historical third quarter totals for ADMIN AND OPS in 2016 dollars?
+<!-- What are the historical third quarter totals for ADMIN AND OPS in 2016 dollars? -->
 
-```{r}
-officeYearly("ADMIN AND OPS")
-```
+<!-- ```{r} -->
+<!-- officeYearly("ADMIN AND OPS") -->
+<!-- ``` -->
