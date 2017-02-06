@@ -109,3 +109,15 @@ payeeYearly <- function(payee) {
 <!-- ```{r} -->
 <!-- officeYearly("ADMIN AND OPS") -->
 <!-- ``` -->
+
+```{r write CSVs}
+# Check for output folder and create it if needed.
+if (file.exists("output") == FALSE) {
+  dir.create("output")
+}
+
+# Write CSVs
+write_csv(house_expenditures_clean, "output/house_expenditures_clean.csv")
+write_csv(by_office, "output/by_office.csv")
+write_csv(by_payee, "output/by_payee.csv")
+```
