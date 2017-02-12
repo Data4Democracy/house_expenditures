@@ -1,0 +1,33 @@
+---
+title: 'House Expenditures: About the Data'
+author: '@ryanes'
+date: "02/10/2017"
+---
+If you haven't already, please review our [readme](https://github.com/Data4Democracy/house_expenditures/blob/master/README.md) to learn more about how to contribute.
+
+## More About This Project
+The purpose of these scripts is to download third quarter data describing the 
+House of Representative's expenditures.
+
+As much as possible, please link to the [data on our data.world House Expenditures 
+page](https://data.world/data4democracy/house-expenditures) when contributing to 
+this repo. In addition to 3rd quarter spending data, the resulting data from our cleaning scripts can also be found at data.world: 
+
+- [Cleaned 3rd quarter spending data](https://query.data.world/s/8lg24b1qizzc1c9af33z0xzqj)  
+- [3rd quarter spending totals by office](https://query.data.world/s/eh4ai52qg5wbj99cvyf27p3ry)  
+- [3rd quarter spending totals by payee](https://query.data.world/s/afend2idi14hkvq7dkzq9uzn0)  
+
+## About the Original Datasets
+
+The original datasets and the remaining quarters can be found at [ProPublica](https://projects.propublica.org/represent/expenditures). You can read more about this data set on [ProPublica's post](https://www.propublica.org/article/update-on-house-disbursements-a-few-notes-on-how-to-use-the-data).  
+
+### Cleaning 
+
+I removed commas from the dollar amounts and converted the start and end dates to the date 
+format. I added code in the cleaning section of `explore_house_exp.Rmd` to change 2009-2015 figures 
+to 2016 dollars using inflation rates I found on [http://www.usinflationcalculator.com/](http://www.usinflationcalculator.com/). I only changed it in `explore_house_exp.Rmd`, not in `clean.R`. *I am not an expert in this area, so any pull requests with better methods for converting to 2016 data are welcome.*
+
+The office, payee, and recipient fields aren't standardized so unique entities 
+that are spelled differently need to be collapsed into one value in future revisions. You 
+can read more about that problem under the "How We Collect the Data" section of 
+[ProPublica's post](https://projects.propublica.org/represent/expenditures).
