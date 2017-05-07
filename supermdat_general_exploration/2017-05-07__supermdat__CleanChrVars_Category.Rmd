@@ -1,5 +1,5 @@
 ---
-title: "R Notebook for US House Expenditures: Cleaning the 'purpose' variable"
+title: "R Notebook for US House Expenditures: Cleaning the 'category' variable"
 output: html_notebook
 ---
 
