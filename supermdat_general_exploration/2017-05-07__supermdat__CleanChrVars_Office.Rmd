@@ -1,0 +1,172 @@
+---
+title: "R Notebook for US House Expenditures: Cleaning the 'office' variable"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook for exploration of US House Expenditures. Data were obtained from the ProPublica website here:  
+[ProPublica](https://projects.propublica.org/represent/expenditures)  
+  
+  Load the packages to be used.
+```{r, message=FALSE, warning=FALSE}
+
+library("tidyverse")          # data manipulation
+library("magrittr")           # data manipulation (piping data)
+library("stringr")            # string manipulation
+library("lubridate")          # date manipulation
+library("stringdist")            # calculating string (character) distances
+
+```
+  
+    
+    Session Info.
+```{r}
+
+sessionInfo()
+
+```
+  
+    
+    Clean-up / standardiation of values in character variables.  
+    
+  First, build a function to compute the distances (Jaro-Winker distance) between every pair of levels in a particular variable.
+```{r}
+
+# rm(AllQtrs)
+
+
+func_jw_dist <- function(data_, var_, ...){
+  assign("x",
+         distinct_(select_(data_,
+                           var_
+                           )
+                   ) %>% 
+           as.data.frame()
+         )
+  
+  x[is.na(x)] <- "--"
+  
+  # assign(paste0(var_, "_distinct"),
+  #        x
+  #        )
+  
+  # return(x)
+
+  assign("y",
+         stringdistmatrix(x[ , 1],
+                          useNames = "strings",
+                          method = "jw"
+                          ) %>%
+           as.matrix()
+         )
+
+  y[upper.tri(y, diag = TRUE)] <- NA
+
+  y <- as.data.frame(y) %>% 
+    mutate(level2 = rownames(y)
+           )
+
+  # assign(paste0(var_, "distmtrx_jw"),
+  #        y
+  #        )
+
+  # return(y)
+  
+  assign("z",
+         gather_(y,
+                key_col = var_,
+                value_col = "jw_score",
+                gather_cols = colnames(y)[1:nrow(x)]
+                ) %>% 
+          mutate(var_og = quote(var_)
+                 ) %>% 
+           rename_(level1 = var_) %>% 
+          select(var_og, level1, level2, jw_score) %>%
+          filter(!is.na(jw_score)
+                 )
+         )
+
+  return(z)
+}
+    
+```
+  
+    
+    Explore distances for the variable: office
+```{r}
+
+# rm(dist_category)
+
+dist_office <- func_jw_dist(data_ = AllQtrs_UpdateVars,
+                            var_ = "office"
+                            )
+
+nrow(select(distinct(AllQtrs_UpdateVars,
+                     office
+                     )
+            )
+     )
+
+View(dist_office)
+
+View(filter(dist_office,
+            jw_score <= 0.1
+            ) %>% 
+       arrange(jw_score)
+     )
+
+```
+  
+    
+    Create a lookup table for spelling variants: office  
+      
+    As there were only 32 rows whose Jaro-Winkler distance was below 0.1, I just eyeballd this.
+```{r}
+
+LookupOffice <- data.frame(goodspell = c("new members orientation", "hon patrick j murphy", "hon vern g buchanan", "hon doris o matsui", "hon mike j rogers", "hon nita m lowey", "hon paul d tonko", "hon rush d holt", "hon paul d ryan", "hon theodore e deutch", "hon xavier becerra", "hon richard e neal", "hon nick j rahall ii", "hon jason t smith"
+                                         ),
+                           badspell = c("new member orientation", "hon patrick murphy", "hon vern buchanan", "hon doris matsui", "hon mike rogers", "hon nita n lowey", "hon paul tonko", "hon rush holt", "hon paul ryan", "hon theodore deutch", "hon xavier becarra", "hon richard r neal", "hon nick j ii rahall", "hon jason smith"
+                                        ),
+                           stringsAsFactors = FALSE
+                           ) %>% 
+  mutate(rownum = 1:nrow(.),
+         variable_og = "office"
+         ) %>% 
+  select(variable_og, rownum, goodspell, badspell)
+
+str(LookupOffice)
+View(LookupOffice)
+LookupOffice
+
+```
+  
+    
+    Update spelling for "office" variable.  "Office" goes from having 841 levels with "variant spellings", to having 827 levels with no variations.
+```{r}
+
+message("AllQtrs_UpdateVars")
+str(AllQtrs_UpdateVars$office_factor)
+
+SpellingAdjust_Office <- left_join(AllQtrs_UpdateVars,
+                                   select(LookupOffice,
+                                          badspell,
+                                          goodspell
+                                          ),
+                                   by = c("office" = "badspell")
+                                   ) %>% 
+  mutate(office_cc = ifelse(is.na(goodspell),
+                            office,
+                            goodspell
+                            ),
+         office_cc_factor = as.factor(office_cc)
+         ) %>% 
+  select(-office, -office_factor, -goodspell)
+  
+message("SpellingAdjust_Office")
+str(SpellingAdjust_Office$office_cc_factor)
+
+message("SpellingAdjust_Office")
+str(SpellingAdjust_Office)
+
+```
+  
+    
