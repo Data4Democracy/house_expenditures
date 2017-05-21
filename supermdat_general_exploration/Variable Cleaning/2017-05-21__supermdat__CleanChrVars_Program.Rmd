@@ -1,0 +1,209 @@
+---
+title: "R Notebook for US House Expenditures: Cleaning the 'program' variable"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook for exploration of US House Expenditures. Data were obtained from the ProPublica website here:  
+[ProPublica](https://projects.propublica.org/represent/expenditures)  
+  
+  Load the packages to be used.
+```{r, message=FALSE, warning=FALSE}
+
+library("tidyverse")          # data manipulation
+library("lazyeval")           # writing functions
+library("magrittr")           # data manipulation (piping data)
+library("stringr")            # string manipulation
+library("lubridate")          # date manipulation
+library("stringdist")         # calculating string (character) distances
+
+```
+  
+    
+    Session Info.
+```{r}
+
+sessionInfo()
+
+```
+  
+    
+    Clean-up / standardiation of values in character variables.  
+    
+  First, build a function to compute the distances (Jaro-Winker distance) between every pair of levels in a particular variable.
+```{r}
+
+func_dist <- function(data_, var_, method_ = "jw", ...){
+  assign("x",
+         distinct_(select_(data_,
+                           var_
+                           )
+                   ) %>% 
+           as.data.frame()
+         )
+  
+  x[is.na(x)] <- "--"
+  
+  # assign(paste0(var_, "_distinct"),
+  #        x
+  #        )
+  
+  # return(x)
+
+  assign("y",
+         stringdistmatrix(x[ , 1],
+                          useNames = "strings",
+                          method = method_
+                          ) %>%
+           as.matrix()
+         )
+
+  y[upper.tri(y, diag = TRUE)] <- NA
+
+  y <- as.data.frame(y) %>% 
+    mutate(level2 = rownames(y)
+           )
+
+  # assign(paste0(var_, "distmtrx_jw"),
+  #        y
+  #        )
+
+  # return(y)
+  
+  score <- paste0(method_, "_score")
+  
+  assign("z",
+         gather_(y,
+                key_col = var_,
+                value_col = score,
+                gather_cols = colnames(y)[1:nrow(x)]
+                ) %>% 
+          mutate(var_og = quote(var_)
+                 ) %>% 
+           rename_(level1 = var_) %>% 
+          select_(quote(var_og),
+                  quote(level1),
+                  quote(level2),
+                  score
+                  ) %>%
+         filter_(interp(~ !is.na(var),
+                        var = as.name(score)
+                        )
+                 )
+         )
+
+  return(z)
+}
+    
+```
+  
+    
+    Inspect the most recent file:  SpellingAdjust_Office
+```{r}
+
+message("SpellingAdjust_Office")
+str(SpellingAdjust_Office)
+
+message("SpellingAdjust_Office")
+summary(SpellingAdjust_Office)
+
+```
+    
+    
+    Explore distances for the variable: program
+```{r}
+
+dist_program <- func_dist(data_ = SpellingAdjust_Office,
+                          var_ = "program",
+                          method_ = "jw",
+                          p = 0.1
+                          )
+
+nrow(select(distinct(SpellingAdjust_Office,
+                     program
+                     )
+            )
+     )
+
+View(dist_program)
+
+View(filter(dist_program,
+            jw_score <= 0.2
+            ) %>% 
+       arrange(jw_score)
+     )
+
+filter(dist_program,
+       jw_score <= 0.2
+       ) %>% 
+  arrange(jw_score)
+
+```
+  
+    
+    Create a lookup table for spelling variants: program  
+      
+    As there were only 13 rows whose Jaro-Winkler distance was below 0.2, I just eyeballed this.
+```{r}
+
+View(select(SpellingAdjust_Office,
+            program
+            ) %>% 
+       distinct() %>% 
+       arrange(program)
+     )
+
+View(group_by(SpellingAdjust_Office,
+              program
+              ) %>% 
+       summarise(Cnt = n()
+                 )
+     )
+
+LookupProgram <- data.frame(goodspell = c("child care center", "dc long distance"
+                                         ),
+                           badspell = c("child care ctr", "do long distance"
+                                        ),
+                           stringsAsFactors = FALSE
+                           ) %>% 
+  mutate(rownum = 1:nrow(.),
+         variable_og = "program"
+         ) %>% 
+  select(variable_og, rownum, goodspell, badspell)
+
+str(LookupProgram)
+View(LookupProgram)
+LookupProgram
+
+```
+  
+    
+    Update spelling for "program" variable.  "Office" goes from having 97 levels with "variant spellings", to having 95 levels with no variations.
+```{r}
+
+message("SpellingAdjust_Office")
+str(SpellingAdjust_Office$program_factor)
+
+SpellingAdjust_Program <- left_join(SpellingAdjust_Office,
+                                    select(LookupProgram,
+                                           badspell,
+                                           goodspell
+                                           ),
+                                    by = c("program" = "badspell")
+                                    ) %>% 
+  mutate(program_cc = ifelse(is.na(goodspell),
+                             program,
+                             goodspell
+                            ),
+         program_cc_factor = as.factor(program_cc)
+         ) %>% 
+  select(-program, -program_factor, -goodspell)
+  
+message("SpellingAdjust_Program")
+str(SpellingAdjust_Program$program_cc_factor)
+
+message("SpellingAdjust_Program")
+str(SpellingAdjust_Program)
+
+```
+  
+    
