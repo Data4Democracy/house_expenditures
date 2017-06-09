@@ -1,0 +1,673 @@
+---
+title: "R Notebook for US House Expenditures: Cleaning the 'purpose' variable"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook for exploration of US House Expenditures. Data were obtained from the ProPublica website here:  
+[ProPublica](https://projects.propublica.org/represent/expenditures)  
+  
+  NOTE:  The input to thise Notebook is the data frame: SpellingAdjust_Program.Rds
+  SpellingAdjust_Program.Rds is the final output produced by the file: 2017-05-21__supermdat__CleanChrVars_Program.Rmd
+  
+  Load the packages to be used.
+```{r, message=FALSE, warning=FALSE}
+
+library("tidyverse")          # data manipulation
+library("lazyeval")           # writing functions
+library("stringr")            # string manipulation
+library("lubridate")          # date manipulation
+library("stringdist")         # calculating string (character) distances
+library("tidytext")           # text manipulation
+library("hunspell")           # used for spell checking
+
+```
+  
+    
+    Session Info.
+```{r}
+
+sessionInfo()
+
+```
+  
+    
+    Clean-up / standardiation of values in character variables.  
+    
+  First, built a function to compute the distances (Jaro-Winker distance) between every pair of levels in a particular variable.
+```{r}
+
+func_dist <- function(data_, var_, method_ = "jw", ...){
+  assign("x",
+         distinct_(select_(data_,
+                           var_
+                           )
+                   ) %>% 
+           as.data.frame()
+         )
+  
+  x[is.na(x)] <- "--"
+  
+  # assign(paste0(var_, "_distinct"),
+  #        x
+  #        )
+  
+  # return(x)
+
+  assign("y",
+         stringdistmatrix(x[ , 1],
+                          useNames = "strings",
+                          method = method_
+                          ) %>%
+           as.matrix()
+         )
+
+  y[upper.tri(y, diag = TRUE)] <- NA
+
+  y <- as.data.frame(y) %>% 
+    mutate(level2 = rownames(y)
+           )
+
+  # assign(paste0(var_, "distmtrx_jw"),
+  #        y
+  #        )
+
+  # return(y)
+  
+  score <- paste0(method_, "_score")
+  
+  assign("z",
+         gather_(y,
+                key_col = var_,
+                value_col = score,
+                gather_cols = colnames(y)[1:nrow(x)]
+                ) %>% 
+          mutate(var_og = quote(var_)
+                 ) %>% 
+           rename_(level1 = var_) %>% 
+          select_(quote(var_og),
+                  quote(level1),
+                  quote(level2),
+                  score
+                  ) 
+         %>%
+          # filter(!is.na(score)
+          #        )
+         filter_(interp(~ !is.na(var),
+                        var = as.name(score)
+                        )
+                 )
+         )
+
+  return(z)
+}
+    
+```
+  
+    
+    Inspect the most recent file:  SpellingAdjust_Program
+```{r}
+
+message("SpellingAdjust_Program")
+str(SpellingAdjust_Program)
+
+message("SpellingAdjust_Program")
+summary(SpellingAdjust_Program)
+
+```
+  
+    
+    Explore distances for the variable: purpose
+    
+    Even with the Jaro-Winker threshold at 0.1 (i.e., jw_socre <= 0.1), there are still an extremely large amount of "close" matches (~138,000).
+```{r}
+
+str(SpellingAdjust_Program)
+
+dist_purpose <- func_dist(data_ = SpellingAdjust_Program,
+                          var_ = "purpose",
+                          method_ = "jw",
+                          p = 0.1
+                          )
+
+message("distinct levels of purpose")
+nrow(select(distinct(SpellingAdjust_Program,
+                     purpose
+                     )
+            )
+     )
+
+message("rows of the distance matrix")
+nrow(dist_purpose)
+
+message("rows of the distance matrix with the jw_socre <= 0.1")
+nrow(filter(dist_purpose,
+            jw_score <= 0.1
+            ) %>%
+       arrange(jw_score)
+     )
+
+View(filter(dist_purpose,
+            jw_score <= 0.1
+            ) %>%
+       arrange(jw_score)
+     )
+
+```
+  
+    
+    Inspecting "purpose" for mis-spellings and spelling variations.
+    
+    purpose_NoSymbs: This is the result of removing common "extraneous" text (e.g., numerics, punctuation, dollar sign, "qty") that seen when eyeballing dist_purpose (the result of the distance calculation).  
+      
+    As a result, running func_dist again, and setting the resulting Jaro-Winker threshold at 0.1 (i.e., jw_socre <= 0.1), we have ~2,000 matches.  Much better, but still a lot to sift through manually.
+```{r}
+
+fix_list1 <- c("[[:digit:]]" = "",
+               "[[:punct:]]" = "",
+               "\\$" = "",
+               "qty" = ""
+               )
+
+
+purpose_NoSymbs <- select(SpellingAdjust_Program,
+                          purpose
+                          ) %>% 
+  distinct() %>% 
+  mutate(purpose_mod = str_replace_all(purpose,
+                                       fix_list1
+                                       ) %>% 
+           str_replace_all("\\s+",
+                           " "
+                           ) %>% 
+           str_trim(side = "both"),
+         RowNum = row_number()
+         )
+
+
+dist_purpose_NoSymbs <- func_dist(data_ = purpose_NoSymbs,
+                                  var_ = "purpose_mod",
+                                  method_ = "jw",
+                                  p = 0.1
+                                  )
+
+message("rows of the distance matrix with the jw_socre <= 0.1")
+nrow(filter(dist_purpose_NoSymbs,
+            jw_score <= 0.1
+            ) %>%
+       arrange(jw_score)
+     )
+
+View(filter(dist_purpose_NoSymbs,
+            jw_score <= 0.1
+            ) %>%
+       arrange(jw_score)
+     )
+
+```
+  
+    
+    Create the func_TopMisSpel to get common mis-spellings (based on hunspell::hunspell_check).
+```{r}
+
+func_TopMisSpel <- function(data_, var_){
+  x <- unnest_tokens_(tbl = data_,
+                      input_col = var_,
+                      output_col = "word"
+                      )
+  
+  y <- select(x,
+              word
+              ) %>%
+    distinct() %>%
+    left_join(group_by(x,
+                       word
+                       ) %>% 
+                summarise(RowNum_Min = min(RowNum),
+                          WordCnt_Num = n()
+                          # WordCnt_NumCum = cumsum(WordCnt_Num),
+                          # WordCnt_Pct = WordCnt_Num / nrow(x) * 100
+                          # WordCnt_PctCum = cumsum(WordCnt_Pct)
+                          ),
+              by = c("word" = "word")
+              ) %>% 
+    left_join(data_,
+              by = c("RowNum_Min" = "RowNum")
+            ) %>%
+    mutate(Correct = hunspell_check(toupper(word)
+                                    )
+           ) %>% 
+    filter(Correct == FALSE) %>%
+    arrange(desc(WordCnt_Num)
+            )
+  
+  z <- y %>% 
+    mutate(WordCnt_Pct = WordCnt_Num / sum(WordCnt_Num) * 100,
+           WordCnt_NumCum = cumsum(WordCnt_Num),
+           WordCnt_PctCum = cumsum(WordCnt_Pct)
+           ) %>% 
+    select_("word",
+            "WordCnt_Num",
+            "WordCnt_NumCum",
+            "WordCnt_Pct",
+            "WordCnt_PctCum",
+            "RowNum_Min",
+            var_,
+            "Correct"
+            )
+
+  return(z)
+}
+
+```
+  
+    
+    Check for common mis-spellings or spelling variations in purpose_mod.  Fixing all mis-spellings that occur 10 or more times will correct ~67% of all mis-spellings.
+```{r}
+
+str(purpose_NoSymbs)
+
+purpose_mod_TopMisSpel <- func_TopMisSpel(data_ = purpose_NoSymbs,
+                                          var_ = "purpose_mod"
+                                          )
+
+
+str(purpose_mod_TopMisSpel)
+View(purpose_mod_TopMisSpel)
+head(purpose_mod_TopMisSpel, 50)
+
+```
+  
+    
+    Correcting the spelling for those words that have 10 or more mis-spellings.  This was a tedious manual process.
+```{r}
+
+str(purpose_NoSymbs)
+
+fix_list2 <- c("\\badmin\\b" = "administrative",
+               "\\baff\\b" = "affairs",
+               "\\bass(is){0,1}t{0,1}\\b" = "assistant",
+               "\\bcasewkr\\b" = "case worker",
+               "\\bchf\\b" = "chief",
+               "\\bcao\\b" = "chief administrative officer",
+               "\\bcmte\\b" = "committee",
+               "\\bcommun(ica){0,1}\\b" = "communications",
+               "\\bconst(it){0,1}\\b" = "constituent",
+               "\\bconst(i){0,1}\\b" = "constituent",
+               "\\bcontr\\b" = "contracts",
+               "\\bcoord{0,1}\\b" = "coordinator",
+               "\\bcorr(es){0,1}p{0,1}\\b" = "correspondent",
+               "\\bcos\\b" = "chief of staff",
+               "\\bcouns{0,1}\\b" = "counselor",
+               "\\bdama\\b" = "disability assistance and memorial affairs",
+               "\\bdep\\b" = "deputy",
+               "\\bdpty\\b" = "deputy",
+               "\\bdir(ecto){0,1}\\b" = "director",
+               "\\beo\\b" = "executive order",
+               "\\bexc\\b" = "executive",
+               "\\beq\\b" = "equipment",
+               "\\bfc\\b" = "full committee",
+               "\\bhardw\\b" = "hardware",
+               "\\binv\\b" = "investigations",
+               "\\bld\\b" = "legislative director",
+               "\\blegist{0,1}\\b" = "legislative",
+               "\\bleg\\b" = "legislative",
+               "\\bmgmt\\b" = "management",
+               "\\bmn{0,1}gr\\b" = "manager",
+               "\\bmem\\b" = "member",
+               "\\bmbr\\b" = "member",
+               "\\bofc\\b" = "office",
+               "\\boper\\b" = "operations",
+               "\\bops\\b" = "operations",
+               "\\bproj\\b" = "projects",
+               "\\bpurch\\b" = "purchases",
+               "\\brepub\\b" = "republican",
+               "\\bsched\\b" = "scheduler",
+               "\\bsec(ty){0,1}\\b" = "secretary",
+               "\\bsaa\\b" = "sergeant at arms",
+               "\\bsvc{0,1}s{0,1}\\b" = "services",
+               "\\bserv{0,1}\\b" = "services",
+               "\\bsoftw\\b" = "software",
+               "\\bspeechwriter\\b" = "speech writer",
+               "\\bsta{0,1}f\\b" = "staff",
+               "\\bstrat\\b" = "strategic",
+               "\\bsubc(om){0,1}(omm){0,1}\\b" = "subcommittee",
+               "\\bsyst\\b" = "systems",
+               "\\btelecomsrv\\b" = "telecommunications services"
+               )
+
+purpose_FixCmnMisSpel <- 
+  mutate(purpose_NoSymbs,
+         purpose_mod2 = str_replace_all(purpose_mod,
+                                        fix_list2
+                                        )
+         ) %>% 
+  select(RowNum,
+         purpose_mod2
+         )
+
+str(purpose_FixCmnMisSpel)
+
+```
+  
+    
+    Check for common mis-spellings or spelling variations in purpose_mod2.
+```{r}
+
+str(purpose_FixCmnMisSpel)
+
+purpose_mod2_TopMisSpel <- func_TopMisSpel(data_ = purpose_FixCmnMisSpel,
+                                           var_ = "purpose_mod2"
+                                           )
+
+
+View(head(purpose_mod2_TopMisSpel, 500))
+head(purpose_mod2_TopMisSpel, 50)
+
+```
+  
+    
+    Calculate distance on the "cleaned" data using the Jaro-Winker distance.  "Fixing" the spellings has produced ~2,544 matches, and it looks like these are mostly "uncommon" spelling mistakes (e.g., spelling "deputy" as "depty").
+```{r}
+
+dist_purposeFix_jw <- func_dist(data_ = purpose_FixCmnMisSpel,
+                                var_ = "purpose_mod2",
+                                method_ = "jw",
+                                p = 0.1
+                                )
+
+str(dist_purposeFix_jw)
+
+filter(dist_purposeFix_jw,
+       jw_score <= 0.1
+       ) %>% 
+  nrow()
+
+View(filter(dist_purposeFix_jw,
+            jw_score <= 0.1
+            ) %>% 
+       arrange(jw_score)
+     )
+
+```
+  
+    
+    Calculate distance on the "cleaned" data using the Soundex distance.
+```{r}
+
+dist_purposeFix_sndx <- func_dist(data_ = purpose_FixCmnMisSpel,
+                                  var_ = "purpose_mod2",
+                                  method_ = "soundex"
+                                  )
+
+str(dist_purposeFix_sndx)
+
+```
+  
+    
+    Join distance calculations done with Jaro-Winker and done with Soundex.
+```{r}
+
+dist_purposeFix_Full <- inner_join(dist_purposeFix_jw,
+                                   select(dist_purposeFix_sndx,
+                                          -var_og
+                                          ),
+                                   by = c("level1" = "level1",
+                                          "level2" = "level2"
+                                          )
+                                   ) %>% 
+  mutate(l1_FrstChr = substr(level1, 1, 1),
+         l2_FrstChr = substr(level2, 1, 1),
+         l1_nChr = nchar(level1),
+         l2_nChr = nchar(level2)
+         )
+
+message("dist_purposeFix_Full")
+str(dist_purposeFix_Full)
+
+View(filter(dist_purposeFix_Full,
+            jw_score <= 0.1
+            ) %>% 
+       arrange(jw_score)
+     )
+
+View(filter(dist_purposeFix_Full,
+            jw_score <= 0.04
+            ) %>% 
+       arrange(jw_score)
+     )
+
+dist_purposeFix_Full_Pt04 <- filter(dist_purposeFix_Full,
+                                    jw_score <= 0.04
+                                    )
+
+message("dist_purposeFix_Full_Pt04")
+str(dist_purposeFix_Full_Pt04)
+
+```
+  
+    
+    "En masse" correction if jw_score is <= 0.04 (this value was chosen by eyeballing the scores).
+```{r}
+
+message("purpose_FixCmnMisSpel")
+str(purpose_FixCmnMisSpel)
+
+purpose_FixEnMasse <- left_join(purpose_FixCmnMisSpel,
+                                select(dist_purposeFix_Full_Pt04,
+                                       level1,
+                                       level2,
+                                       jw_score
+                                       ),
+                                by = c("purpose_mod2" = "level2")
+                                ) %>% 
+  mutate(purpose_mod3 = ifelse(is.na(level1),
+                               purpose_mod2,
+                               level1
+                               )
+         )
+
+message("purpose_FixEnMasse")
+str(purpose_FixEnMasse)
+View(head(purpose_FixEnMasse, 500))
+
+```
+  
+    
+    Check for common mis-spellings or spelling variations in purpose_mod3.
+```{r}
+
+str(purpose_FixEnMasse)
+
+purpose_mod3_TopMisSpel <- func_TopMisSpel(data_ = purpose_FixEnMasse,
+                                           var_ = "purpose_mod3"
+                                           )
+
+
+View(head(purpose_mod3_TopMisSpel, 500))
+head(purpose_mod3_TopMisSpel, 50)
+
+```
+  
+    
+    Update spelling of of the purpose in the larger SpellingAdjust_Program data frame.
+```{r}
+
+message("SpellingAdjust_Program")
+str(SpellingAdjust_Program)
+
+str(fix_list1)
+str(fix_list2)
+
+SpellingAdjust_Purpose <- 
+  mutate(SpellingAdjust_Program,
+         purpose_cc = str_replace_all(purpose,
+                                      fix_list1
+                                      ) %>% 
+           str_replace_all(fix_list2) %>% 
+           str_replace_all("\\s+",
+                           " "
+                           ) %>% 
+           str_trim(side = "both"),
+         purpose_cc_factor = as.factor(purpose_cc)
+         ) %>% 
+  select(-purpose,
+         -purpose_factor
+         )
+
+
+message("SpellingAdjust_Purpose")
+str(SpellingAdjust_Purpose)
+
+
+message("SpellingAdjust_Purpose")
+str(SpellingAdjust_Purpose$purpose_factor)
+str(SpellingAdjust_Purpose$purpose_cc_factor)
+
+```
+  
+    
+    Compute distance of new "purpose" variable ("purpose_cc"). This shows that there are still mis-spellings and spelling variations that exist. It also shows that even with "proper" spellings, there are many enteries in the "purpose" variable that are similar.
+```{r}
+
+dist_purpose_FixCmnMisSpel <- func_dist(data_ = SpellingAdjust_Purpose,
+                                        var_ = "purpose_cc",
+                                        method_ = "jw",
+                                        p = 0.1
+                                        ) %>%
+  mutate(l1_FrstChr = substr(level1, 1, 1),
+         l2_FrstChr = substr(level2, 1, 1),
+         l1_NumChrs = nchar(level1),
+         l2_NumChrs = nchar(level2),
+         RowNum = row_number()
+         )
+
+message("rows of the distance matrix with the jw_socre <= 0.1")
+nrow(filter(dist_purpose_FixCmnMisSpel,
+            jw_score <= 0.1
+            ) %>%
+       arrange(jw_score)
+     )
+
+View(filter(dist_purpose_FixCmnMisSpel,
+            jw_score <= 0.1
+            ) %>%
+       arrange(jw_score)
+     )
+
+```
+  
+    
+    Using simple hierarchical clustering on the "purpose distances" to highlight which "purpose" entries are similar. A potential use of this would be to do analyses on the clusters instead of one the actual "purpose" entries themselves.
+      
+    First, create the distance matrix.
+```{r}
+
+str(SpellingAdjust_Purpose)
+
+purpose_cc_distinct <- select(SpellingAdjust_Purpose,
+                              purpose_cc
+                              ) %>% 
+  distinct() 
+
+# The step below is done because stringdist::stringdistmatrix will not function properly with NA values
+purpose_cc_distinct[is.na(purpose_cc_distinct)] <- "--"
+
+str(purpose_cc_distinct)
+View(arrange(purpose_cc_distinct,
+             purpose_cc
+             )
+     )
+
+View(group_by(SpellingAdjust_Purpose,
+              purpose_cc
+              ) %>% 
+       summarise(Cnt_Num = n(),
+                 Cnt_Pct = Cnt_Num / nrow(SpellingAdjust_Purpose)
+                 ) %>% 
+       arrange(purpose_cc)
+     )
+
+
+distmtrx_purpose_cc <- stringdistmatrix(purpose_cc_distinct$purpose_cc,
+                                        useNames = "strings",
+                                        method = "jw",
+                                        p = 0.1
+                                        )
+
+str(distmtrx_purpose_cc)
+
+```
+  
+    
+    Using simple hierarchical clustering on the "purpose distances" to highlight which "purpose" entries are similar.  A potential use of this would be to do analyses on the clusters instead of one the actual "purpose" entries themselves.
+      
+    Second, perform the hierarchical clustering. k = 1000 is arbitrarily chosen, but does a relatively accurate job of creating the clusters with more observations.
+```{r}
+
+hc <- hclust(as.dist(distmtrx_purpose_cc)
+             )
+
+str(hc)
+
+
+ctree_purpose_cc_k1000 <- cutree(hc, k = 1000)
+str(ctree_purpose_cc_k1000)
+
+```
+
+
+    Using simple hierarchical clustering on the "purpose distances" to highlight which "purpose" entries are similar.  A potential use of this would be to do analyses on the clusters instead of one the actual "purpose" entries themselves.
+      
+    Third, join back data that makes interpreting the clusters easier (e.g., what specific "purpose" text is entered).
+```{r}
+
+purpose_cc_df_k1000 <- data.frame(purpose_cc_distinct,
+                                  ctree_purpose_cc_k1000
+                                  ) %>% 
+  rename(cluster = ctree_purpose_cc_k1000)
+
+
+str(purpose_cc_df_k1000)
+View(purpose_cc_df_k1000)
+
+
+purpose_cc_cnts <- group_by(purpose_cc_df_k1000,
+                            cluster
+                            ) %>% 
+  summarise(Cnt_Num = n(),
+            Cnt_Pct = Cnt_Num / nrow(purpose_cc_df_k1000)
+            ) %>% 
+  arrange(desc(Cnt_Pct)
+          )
+
+str(purpose_cc_cnts)
+View(purpose_cc_cnts)
+
+
+purpose_cc_df_k1000_cnts <- left_join(purpose_cc_df_k1000,
+                                      purpose_cc_cnts,
+                                      by = c("cluster" = "cluster")
+                                      )
+
+
+str(purpose_cc_df_k1000_cnts)
+
+View(arrange(purpose_cc_df_k1000_cnts,
+             desc(Cnt_Num),
+             cluster,
+             purpose_cc
+             )
+     )
+
+```
+  
+    
+    Remove unneeded files.
+```{r}
+
+rm(dist_purpose, dist_purpose_NoSymbs, dist_purposeFix_jw, dist_purposeFix_sndx, dist_purposeFix_Full, dist_purposeFix_Full_Pt04, purpose_FixCmnMisSpel, purpose_FixEnMasse, purpose_mod_TopMisSpel, purpose_mod2_TopMisSpel, purpose_mod3_TopMisSpel, purpose_NoSymbs, fix_list1, fix_list2, hc, purpose_cc_cnts, purpose_cc_distinct, SpellingAdjust_Program, dist_purpose_FixCmnMisSpel)
+
+```
+
+    
+    
