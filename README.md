@@ -11,13 +11,15 @@ output: html_document
 
 ## Analysis Workflow
 
+Reading, cleaning, and analyzing data should be done in a reproducible notebook format when possible. 
+
 ### Loading and Cleaning Datasets
 For each analysis, data needs to be loaded and cleaned to a format that is useable for the current analysis and for future analyses.
 
-After data has been cleaned, both the raw data and cleaned data should be uploaded to a project-specific data.world repo. Additionally, the project's readme should be updated with a summary of the cleansing process and any code associated with cleaning should be pushed to the project's GitHub repo.
+After data has been cleaned, the resulting dataset should be written as a csv. The csv should be made available on [data.world](https://data.world/data4democracy/house-expenditures). 
 
 ### Exploratory Analysis
-Team members working in exploratory analysis work up general statistics, distributions of important variables, and hypotheses based on initial exploration of covariation.
+Team members working in exploratory analysis work up general statistics, distributions of important variables, and hypotheses based on initial exploration of covariation. If this analysis is in a notebook that is different from the cleaning script, there should be documentation of which scripts need to be run in order to reproduce the analysis results. 
 
 When an analysis job is complete, a pull request to the GitHub repo should be made to be edited by collaborators of the project or a committee of assigned editors.
 
