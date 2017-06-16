@@ -13,6 +13,10 @@ output: html_document
 
 Reading, cleaning, and analyzing data should be done in a reproducible notebook format when possible. 
 
+### Organizing Work 
+
+If contributors are working on projects other than updating the files in the main directory, they are encouraged to keep their work in a folder that is named in a way that describes the folder's contents. Some examples might be `ml_model_R` or `alternate_cleaning_python`. This should make it easier for new contributors to follow what is happening and make judgements about how to organize their contributions.  
+
 ### Loading and Cleaning Datasets
 For each analysis, data needs to be loaded and cleaned to a format that is useable for the current analysis and for future analyses.
 
