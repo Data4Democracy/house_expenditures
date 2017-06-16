@@ -1,0 +1,14 @@
+---
+title: "Using the Cleaning Scripts"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+To clean the `office`, `category`, `program`, and `purpose` variables, run the scripts in this order: 
+
+- `supermdat_general_exploration/2017-05-07__supermdat__GeneralCleanAndStandardize.Rmd`  
+- `supermdat_general_exploration/2017-05-07__supermdat__CleanChrVars_Office.Rmd`
+- `supermdat_general_exploration/2017-05-07__supermdat__CleanChrVars_Category.Rmd`
+- `supermdat_general_exploration/Variable Cleaning/2017-05-21__supermdat__CleanChrVars_Program.Rmd`
+- `supermdat_general_exploration/2017-06-09__supermdat__CleanChrVars_Purpose.Rmd`
