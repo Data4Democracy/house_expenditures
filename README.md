@@ -1,5 +1,5 @@
 ---
-title: "Draft Read Me"
+title: "Read Me"
 author: "Eric and Ryan"
 date: "1/17/2017"
 output: html_document
@@ -7,11 +7,20 @@ output: html_document
 
 **Slack:** #propublica
 
-**Project Description:** This ProPublica repository is part of Data for Democracy. Our purpose is to collaboratively work through analytic processes that support the journalism at ProPublica. 
+**Project Description:** This ProPublica repository is part of Data for Democracy. 
+Our purpose is to collaboratively work through analytic processes that support 
+the journalism at ProPublica. Currently, contributors have been focused on 
+cleaning the house expenditures dataset. We are always open to ideas for how to 
+work with this dataset to make it more useful to ProPublica. Please contact 
+@ryanes or @eric_bickel with any suggestions or questions. 
 
 ## Analysis Workflow
 
-Reading, cleaning, and analyzing data should be done in a reproducible notebook format when possible. 
+Reading, cleaning, and analyzing data should be done in a reproducible notebook 
+format when possible. When submitting pull requests, please submit them from a 
+fork of the repository and on a separate branch. Data for Democracy has [an 
+awesome set of instructions](https://github.com/Data4Democracy/github-playground/blob/master/README.md) 
+for how to do this if you need it. 
 
 ### Organizing Work 
 
