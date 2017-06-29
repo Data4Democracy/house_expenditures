@@ -7,12 +7,12 @@ output: html_document
 
 **Slack:** #propublica
 
-**Project Description:** This ProPublica repository is part of Data for Democracy. 
-Our purpose is to collaboratively work through analytic processes that support 
-the journalism at ProPublica. Currently, contributors have been focused on 
-cleaning the house expenditures dataset. We are always open to ideas for how to 
-work with this dataset to make it more useful to ProPublica. Please contact 
-@ryanes or @eric_bickel with any suggestions or questions. 
+**Project Description:** This [ProPublica](https://www.propublica.org/) 
+repository is part of [Data for Democracy](http://datafordemocracy.org/about.html). Our purpose is to collaboratively 
+work through analytic processes that support the journalism at ProPublica. 
+Currently, contributors have been focused on cleaning the house expenditures 
+dataset. We are always open to ideas for how to work with this dataset to make 
+it more useful to ProPublica. Please contact @ryanes or @eric_bickel on [Slack](http://datafordemocracy.org/contact.html) with any suggestions or questions. 
 
 ## Analysis Workflow
 
