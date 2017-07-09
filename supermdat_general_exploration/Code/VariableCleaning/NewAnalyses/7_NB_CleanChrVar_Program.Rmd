@@ -1,0 +1,178 @@
+---
+title: "R Notebook for Exploration of US House Expenditures: 'program' variable"
+output: html_notebook
+---
+  
+    
+    This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook for exploration of US House Expenditures. Data were obtained from the ProPublica website here:  
+[ProPublica](https://projects.propublica.org/represent/expenditures)  
+  
+    
+    The code below is for cleaning the variable: program
+  
+    
+    Setup the root directory.
+```{r "setup", include = FALSE}
+
+require("knitr")
+
+opts_knit$set(root.dir = "/Users/mdturse/Desktop/Analytics/house_expenditures/supermdat_general_exploration")
+
+```
+  
+    
+    Set "wd" as the working directory.
+```{r}
+
+wd <- getwd()
+wd
+
+```
+  
+    
+    Load the packages to be used.
+```{r, message=FALSE, warning=FALSE}
+
+library("tidyverse")          # data manipulation
+library("lazyeval")           # writing functions
+library("rlang")              # writing functions
+library("stringr")            # string manipulation
+library("lubridate")          # date manipulation
+library("stringdist")         # calculating string (character) distances
+library("tidytext")           # text manipulation
+library("hunspell")           # used for spell checking
+# library("caret")              # used pre-processing the data
+library("factoextra")         # clustering
+library("cluster")            # clustering
+
+```
+  
+    
+    Session Info.
+```{r}
+
+sessionInfo()
+
+```
+  
+    
+    First, source the function to compute the distances (Jaro-Winker distance) between every pair of levels in a particular variable.
+```{r}
+
+rm(AllQtrs)
+
+source(paste0(wd, "/Code/VariableCleaning/NewAnalyses/1_func_dist.R")
+       )
+
+```
+  
+    
+    Explore distances for the variable: program
+```{r}
+
+rm(dist_office, LookupOffice, AllQtrs_UpdateVars)
+
+# saveRDS(SpellingAdjust_Office,
+        # paste0(wd,
+        #        "/ProcessedData/",
+        #        "SpellingAdjust_Office.Rds"
+        #        )
+#         )
+
+str(SpellingAdjust_Office)
+
+dist_program <- func_dist(data_ = SpellingAdjust_Office,
+                          var_ = program,
+                          method_ = "jw",
+                          p = 0.1
+                          )
+
+nrow(select(distinct(SpellingAdjust_Office,
+                     program
+                     )
+            )
+     )
+
+View(dist_program)
+
+View(filter(dist_program,
+            jw_score <= 0.2
+            ) %>% 
+       arrange(jw_score)
+     )
+
+```
+  
+    
+    Create a lookup table for spelling variants: program
+```{r}
+
+View(select(SpellingAdjust_Office,
+            program
+            ) %>% 
+       distinct() %>% 
+       arrange(program)
+     )
+
+View(group_by(SpellingAdjust_Office,
+              program
+              ) %>% 
+       summarise(Cnt = n()
+                 )
+     )
+
+LookupProgram <- data.frame(goodspell = c("child care center", "dc long distance"
+                                         ),
+                           badspell = c("child care ctr", "do long distance"
+                                        ),
+                           stringsAsFactors = FALSE
+                           ) %>% 
+  mutate(rownum = 1:nrow(.),
+         variable_og = "program"
+         ) %>% 
+  select(variable_og, rownum, goodspell, badspell)
+
+str(LookupProgram)
+View(LookupProgram)
+LookupProgram
+
+```
+  
+    
+    Update spelling for "program" variable.
+```{r}
+
+message("SpellingAdjust_Office")
+str(SpellingAdjust_Office$program_factor)
+
+SpellingAdjust_Program <- left_join(SpellingAdjust_Office,
+                                    select(LookupProgram,
+                                           badspell,
+                                           goodspell
+                                           ),
+                                    by = c("program" = "badspell")
+                                    ) %>% 
+  mutate(program_cc = ifelse(is.na(goodspell),
+                             program,
+                             goodspell
+                            ),
+         program_cc_factor = as.factor(program_cc)
+         ) %>% 
+  select(-program, -program_factor, -goodspell)
+  
+message("SpellingAdjust_Program")
+str(SpellingAdjust_Program$program_cc_factor)
+
+saveRDS(SpellingAdjust_Program,
+        paste0(wd,
+               "/ProcessedData/",
+               "SpellingAdjust_Program.Rds"
+               )
+        )
+
+message("SpellingAdjust_Program")
+str(SpellingAdjust_Program)
+
+```
+
+

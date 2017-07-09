@@ -1,0 +1,619 @@
+---
+title: "R Notebook for Exploration of US House Expenditures: 'purpose' variable"
+output: html_notebook
+---
+  
+    
+    This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook for exploration of US House Expenditures. Data were obtained from the ProPublica website here:  
+[ProPublica](https://projects.propublica.org/represent/expenditures)  
+  
+    
+    The code below is for cleaning the variable: purpose
+  
+    
+    Setup the root directory.
+```{r "setup", include = FALSE}
+
+require("knitr")
+
+opts_knit$set(root.dir = "/Users/mdturse/Desktop/Analytics/house_expenditures/supermdat_general_exploration")
+
+```
+  
+    
+    Set "wd" as the working directory.
+```{r}
+
+wd <- getwd()
+wd
+
+```
+  
+    
+    Load the packages to be used.
+```{r, message=FALSE, warning=FALSE}
+
+library("tidyverse")          # data manipulation
+library("lazyeval")           # writing functions
+library("rlang")              # writing functions
+library("stringr")            # string manipulation
+library("lubridate")          # date manipulation
+library("stringdist")         # calculating string (character) distances
+library("tidytext")           # text manipulation
+library("hunspell")           # used for spell checking
+# library("caret")              # used pre-processing the data
+library("factoextra")         # clustering
+library("cluster")            # clustering
+
+```
+  
+    
+    Session Info.
+```{r}
+
+sessionInfo()
+
+```
+  
+    
+    Explore distances for the variable: payee  
+      
+      General investigation.
+```{r}
+
+str(SpellingAdjust_Purpose)
+
+
+#payee is always equal to recip_orig, so we only need to analyze payee
+nrow(filter(SpellingAdjust_Purpose,
+            payee != recip_orig
+            )
+     )
+
+# Get the distinct entries for "payee"
+select(SpellingAdjust_Purpose,
+       payee
+       ) %>% 
+  distinct() %>% 
+  nrow()  # 64,772 unique entries
+
+```
+  
+    
+    Explore distances for the variable: payee  
+      
+      Because of the large number of unique entries for "payee" (64,772), the distance calculation needs to broken up and done separately for words having in common the first character in "payee"  - this is done for computational purposes.  
+        
+        NOTE: This implicitly assumes that if the first character in any two "payee" entries are different, then the entries themselves are different.  
+          
+          NOTE: For analyzing the variable "payee," each call of the function func_dist_ByFrstChr will still take approximatley 45 minutes to complete on my laptop.
+          
+          Here, we load the function func_dist_ByFrstChr, which is based on the previously created function func_dist.
+```{r}
+
+source(paste0(wd, "/Code/VariableCleaning/NewAnalyses/2_func_dist_ByFrstChr.R")
+       )
+
+```
+  
+    
+    Run the function on the "payee" variable.  
+      
+      WARNING: This took about 30 minutes to run on my laptop.
+```{r}
+
+str(SpellingAdjust_Purpose)
+
+payee_jw_dist_ByFrstChr <- func_dist_ByFrstChr(data2_ = SpellingAdjust_Purpose,
+                                               var2_ = payee,
+                                               method2_ = "jw",
+                                               p2_ = 0.1
+                                               )
+
+str(payee_jw_dist_ByFrstChr)
+
+```
+  
+    
+    Explore distances for the variable: payee  
+      
+      Put into a single dataframe, only those distance pairs that are below a Jaro-Winkler distance of 0.1.
+```{r}
+
+# create the single data frame with just those distance pairs with a Jaro-Winkler score below 0.1.
+payee_jw_dist_ByFrstChr_BlwPt1 <- filter(payee_jw_dist_ByFrstChr,
+                                         jw_score <= 0.1
+                                         ) %>% 
+  arrange(jw_score)
+
+saveRDS(payee_jw_dist_ByFrstChr_BlwPt1,
+        paste0(wd,
+               "/ProcessedData/",
+               "payee_jw_dist_ByFrstChr_BlwPt1.Rds"
+               )
+        )
+
+rm(payee_jw_dist_ByFrstChr)
+str(payee_jw_dist_ByFrstChr_BlwPt1)
+
+
+View(group_by(payee_jw_dist_ByFrstChr_BlwPt1,
+         l1_FrstChr
+         ) %>% 
+  summarise(Cnt = n()
+            )
+  )
+
+View(head(payee_jw_dist_ByFrstChr_BlwPt1, 500))
+
+```
+  
+    
+        Next, source the function func_TopMisSpel to get common mis-spellings (based on hunspell::hunspell_check).
+```{r}
+
+source(paste0(wd, "/Code/VariableCleaning/NewAnalyses/3_func_TopMisSpel.R")
+       )
+
+```
+  
+    
+    Now, look for common spelling mistakes/variants.
+```{r}
+
+fix_list1 <- c("[[:digit:]]" = "",
+               "[[:punct:]]" = ""
+               )
+
+
+payee_NoSymbs <- select(SpellingAdjust_Purpose,
+                        payee
+                        ) %>% 
+  distinct() %>% 
+  mutate(payee_mod = str_replace_all(payee,
+                                     fix_list1
+                                     ) %>% 
+           str_replace_all("\\s+",
+                           " "
+                           ) %>% 
+           str_trim(side = "both"),
+         RowNum = row_number()
+         )
+
+
+payee_mod_TopMisSpel <- func_TopMisSpel(data_ = payee_NoSymbs,
+                                        var_ = payee_mod
+                                        )
+
+str(payee_mod_TopMisSpel)
+
+View(head(payee_mod_TopMisSpel, 500))
+
+```
+  
+    
+    Correcting the spelling for those words that have 10 or more mis-spellings.  This was a tedious manual process.
+```{r}
+
+fix_list2 <- c(
+               "\\bcentury\\slink\\b" = "centurylink",
+               "\\bcirc\\b" = "circulation",
+               "\\bciti\\spcard\\b" = "",
+               "\\bchamb(e){0,1}\\b" = "chamber",
+               "\\bcoc\\b" = "chamber of commerce",
+               "\\bcommerc\\b" = "commerce",
+               "\\bc(n){0,1}ty\\b" = "county",
+               "\\bisd\\b" = "independent school district",
+               "\\bmgmt\\b" = "management",
+               "\\bofficemax\\b" = "office max",
+               "\\bopm\\b" = "office of personnel management",
+               "\\borg\\b" = "organization",
+               "\\bpaypal\\s\\b" = "",
+               "\\bserv(ic){0,1}\\b" = "services",
+               "\\bsv(c){0,1}(s){0,1}\\b" = "services",
+               "\\btelecom\\b" = "telecommunications",
+               "\\bvzwrlss\\b" = "verizon wireless",
+               "\\bwholefds\\b" = "whole foods"
+               
+               # "\\bdba\\b" = "",      # maybe add to separate column as an indicator
+               # "\\bbhm\\b" = "",      # maybe add to separate column as an indicator
+               # "\\bdba\\b" = "",      # maybe add to separate column as an indicator
+               # "\\bdri\\b" = "",      # maybe add to separate column as an indicator
+               # "\\bfs(i){0,1}\\b" = "", # maybe add to separate column as an indicator
+               # "\\bqps\\b" = ""       # maybe add to separate column as an indicator
+               )
+
+
+payee_FixCmnMisSpel <- 
+  mutate(payee_NoSymbs,
+         payee_mod2 = str_replace_all(payee_mod,
+                                      fix_list2
+                                      )
+         ) %>%
+  select(RowNum,
+         payee_mod2
+         )
+
+str(payee_FixCmnMisSpel)
+
+```
+  
+    
+    Check for common mis-spellings or spelling variations in payee_mod2.
+```{r}
+
+payee_mod2_TopMisSpel <- func_TopMisSpel(data_ = payee_FixCmnMisSpel,
+                                         var_ = payee_mod2
+                                         )
+
+str(payee_mod2_TopMisSpel)
+
+
+View(head(payee_mod2_TopMisSpel, 500))
+head(payee_mod2_TopMisSpel, 50)
+
+```
+  
+    
+    Calculate distance on the "cleaned" data using the Jaro-Winker distance.  
+      
+      WARNING: This took about 30 minutes to run on my laptop.
+```{r}
+
+str(payee_FixCmnMisSpel)
+
+payeeFix_jw_dist_ByFrstChr <- 
+  func_dist_ByFrstChr(data2_ = payee_FixCmnMisSpel,
+                      var2_ = payee_mod2,
+                      method2_ = "jw",
+                      p2_ = 0.1
+                      )
+
+str(payeeFix_jw_dist_ByFrstChr)
+
+View(head(payeeFix_jw_dist_ByFrstChr, 500))
+
+```
+  
+    
+    Create the single data frame with just those distance pairs with a Jaro-Winkler score below 0.2. "Fixing" the common spelling errors has produced ~96,187 matches that are still below the Jaro-Winkler distance metric of 0.1. It looks like these are mostly "uncommon" spelling mistakes (e.g., spelling "township" as "twonship") or adding/removing a letter (e.g., "office solution" vs. "office solutions")
+```{r}
+
+payeeFix_jw_dist_ByFrstChr_BlwPt2 <- filter(payeeFix_jw_dist_ByFrstChr,
+                                            jw_score <= 0.2
+                                            ) %>%
+  arrange(jw_score)
+
+saveRDS(payeeFix_jw_dist_ByFrstChr_BlwPt2,
+        paste0(wd,
+               "/ProcessedData/",
+               "payeeFix_jw_dist_ByFrstChr_BlwPt2.Rds")
+        )
+
+rm(payeeFix_jw_dist_ByFrstChr)
+str(payeeFix_jw_dist_ByFrstChr_BlwPt2)
+
+
+View(group_by(payeeFix_jw_dist_ByFrstChr_BlwPt2,
+         l1_FrstChr
+         ) %>% 
+  summarise(Cnt = n()
+            )
+  )
+
+View(head(payeeFix_jw_dist_ByFrstChr_BlwPt2, 8000))
+
+```
+  
+    
+    "En masse" correction if jw_score is <= 0.08 (this value was chosen by eyeballing the scores).
+```{r}
+
+message("payee_FixCmnMisSpel")
+str(payee_FixCmnMisSpel)
+
+message("payeeFix_jw_dist_ByFrstChr_BlwPt2")
+str(payeeFix_jw_dist_ByFrstChr_BlwPt2)
+
+
+payee_FixEnMasse <- left_join(payee_FixCmnMisSpel,
+                                select(filter(payeeFix_jw_dist_ByFrstChr_BlwPt2,
+                                              jw_score <= 0.08
+                                              ),
+                                       level1,
+                                       level2,
+                                       jw_score
+                                       ),
+                                by = c("payee_mod2" = "level2")
+                                ) %>% 
+  mutate(payee_mod3 = ifelse(is.na(level1),
+                             payee_mod2,
+                             level1
+                             )
+         )
+
+
+message("payee_FixEnMasse")
+str(payee_FixEnMasse)
+View(head(payee_FixEnMasse, 500))
+
+```
+  
+    
+    Check for common mis-spellings or spelling variations in purpose_mod3.
+```{r}
+
+str(payee_FixEnMasse)
+
+payee_mod3_TopMisSpel <- func_TopMisSpel(data_ = payee_FixEnMasse,
+                                         var_ = payee_mod3
+                                         )
+
+
+View(head(payee_mod3_TopMisSpel, 500))
+head(payee_mod3_TopMisSpel, 50)
+
+```
+  
+    
+    Update spelling of of the purpose in the larger SpellingAdjust_Purpose data frame.
+```{r}
+
+message("SpellingAdjust_Purpose")
+str(SpellingAdjust_Purpose)
+
+message("payeeFix_jw_dist_ByFrstChr_BlwPt2")
+str(payeeFix_jw_dist_ByFrstChr_BlwPt2)
+
+str(fix_list1)
+str(fix_list2)
+
+
+payeeFix_jw_dist_ByFrstChr_BlwPt2_mins <- 
+  select(payeeFix_jw_dist_ByFrstChr_BlwPt2,
+         level1,
+         level2,
+         jw_score
+         ) %>% 
+  arrange(level2,
+          jw_score,
+          level1
+          ) %>% 
+  group_by(level2) %>% 
+  mutate(GroupRowNum = row_number()
+         ) %>% 
+  filter(GroupRowNum == 1) %>% 
+  select(level1,
+         level2
+         )
+
+
+View(head(payeeFix_jw_dist_ByFrstChr_BlwPt2_mins, 500))
+
+
+
+SpellingAdjust_Payee <- 
+  mutate(SpellingAdjust_Purpose,
+         payee_temp = str_replace_all(payee,
+                                      fix_list1
+                                      ) %>% 
+           str_replace_all(fix_list2) %>% 
+           str_replace_all("\\s+",
+                           " "
+                           ) %>% 
+           str_trim(side = "both")
+         ) %>% 
+  left_join(payeeFix_jw_dist_ByFrstChr_BlwPt2_mins,
+            by = c("payee_temp" = "level2")
+            ) %>% 
+  mutate(payee_cc = ifelse(is.na(level1),
+                           payee_temp,
+                           level1
+                           ),
+         payee_cc_factor = as.factor(payee_cc)
+         ) %>% 
+  select(-recip_orig,
+         -recip_orig_factor,
+         -payee_temp,
+         -level1
+         )
+
+
+message("SpellingAdjust_Payee")
+str(SpellingAdjust_Payee)
+saveRDS(SpellingAdjust_Payee,
+        paste0(wd,
+               "/ProcessedData/",
+               "SpellingAdjust_Payee.Rds")
+        )
+
+```
+  
+    
+    Compute distance of new "purpose" variable ("payee_cc"). This shows that there are still mis-spellings and spelling variations that exist. It also shows that even with "proper" spellings, there are many enteries in the "payee" variable that are similar.  
+      
+      WARNING: This took about 20 minutes to run on my laptop.
+```{r}
+
+dist_payee_FixCmnMisSpel <- 
+  func_dist_ByFrstChr(data2_ = SpellingAdjust_Payee,
+                      var2_ = payee_cc,
+                      method2_ = "jw",
+                      p2_ = 0.1
+                      )
+
+
+dist_payee_FixCmnMisSpel_BlwPt2 <- dist_payee_FixCmnMisSpel %>% 
+  filter(jw_score <= 0.2) %>% 
+  mutate(l1_FrstChr = substr(level1, 1, 1),
+         l2_FrstChr = substr(level2, 1, 1),
+         l1_NumChrs = nchar(level1),
+         l2_NumChrs = nchar(level2),
+         RowNum = row_number()
+         )
+
+rm(dist_payee_FixCmnMisSpel)
+
+
+message("rows of the distance matrix with the jw_score <= 0.1")
+nrow(filter(dist_payee_FixCmnMisSpel_BlwPt2,
+            jw_score <= 0.1
+            ) %>%
+       arrange(jw_score)
+     )
+
+View(filter(dist_payee_FixCmnMisSpel_BlwPt2,
+            jw_score <= 0.1
+            ) %>%
+       arrange(jw_score)
+     )
+
+```
+  
+    
+    Using simple hierarchical clustering on the "payee distances" to highlight which "payee" entries are similar. A potential use of this would be to do analyses on the clusters instead of one the actual "payee" entries themselves.
+      
+    As this is just an example, for computational reasons, the clustering will only be done for words beginning with common letters. Specifically, it will be limited to words beginning with the letters "c", "d", "u", and "f" (these are a mixture of the most frequently occurring first letters of words, and the first letters of the most frequently occurring words themselves).  
+      
+      So first, we get the common letters.
+```{r}
+
+str(SpellingAdjust_Payee)
+
+
+View(group_by(SpellingAdjust_Payee,
+              payee_cc
+              ) %>% 
+       summarise(Cnt_Num = n(),
+                 Cnt_Pct = Cnt_Num / nrow(SpellingAdjust_Payee)
+                 ) %>% 
+       arrange(desc(Cnt_Num)
+               )
+     )
+
+
+View(mutate(SpellingAdjust_Payee,
+            payee_FrstChr = substr(payee_cc, 1, 1)
+            ) %>% 
+       group_by(payee_FrstChr) %>% 
+       summarise(Cnt_Num = n(),
+                 Cnt_Pct = Cnt_Num / nrow(SpellingAdjust_Payee)
+                 ) %>% 
+       arrange(desc(Cnt_Num))
+     )
+
+
+payee_cc_distinct_cduf <- select(SpellingAdjust_Payee,
+                                 payee_cc
+                                 ) %>%
+  distinct() %>% 
+  mutate(FrstChr = substr(payee_cc, 1, 1)
+         ) %>% 
+  filter(# !is.na(FrstChr)
+         FrstChr %in% c("c", "d", "u", "f")
+         ) %>% 
+  arrange(payee_cc)
+
+str(payee_cc_distinct_cduf)
+
+```
+  
+    
+    Then, we create the distance matrix. 
+```{r}
+
+# The step below is done because stringdist::stringdistmatrix will not function properly with NA values
+payee_cc_distinct_cduf[is.na(payee_cc_distinct_cduf)] <- "--"
+
+
+distmtrx_payee_cc_cduf <- 
+  stringdistmatrix(payee_cc_distinct_cduf$payee_cc,
+                   useNames = "strings",
+                   method = "jw",
+                   p = 0.1
+                   )
+
+str(distmtrx_payee_cc_cduf)
+
+```
+  
+    
+    Using simple hierarchical clustering on the "payee distances" to highlight which "payee" entries are similar.  A potential use of this would be to do analyses on the clusters instead of one the actual "payee" entries themselves.
+      
+    Next, perform the hierarchical clustering. k = 1000 is arbitrarily chosen, but does a relatively accurate job of creating the clusters with similar observations.
+```{r}
+
+hc <- hclust(as.dist(distmtrx_payee_cc_cduf)
+             )
+
+str(hc)
+
+
+ctree_payee_cc_k1000 <- cutree(hc, k = 1000)
+str(ctree_payee_cc_k1000)
+
+```
+  
+    
+    Using simple hierarchical clustering on the "payee distances" to highlight which "payee" entries are similar.  A potential use of this would be to do analyses on the clusters instead of one the actual "payee" entries themselves.
+      
+    Now, join back data that makes interpreting the clusters easier (e.g., what specific "payee" text is entered).  
+      
+      The result shows that clustering on "payee" seems to be less useful than it was for "purpsoe." This is because the clusters form around word commonalities that are not particualry useful (e.g., form a cluster around the word "city" or around the first name "david").
+```{r}
+
+payee_cc_df_k1000 <- data.frame(payee_cc_distinct_cduf,
+                                ctree_payee_cc_k1000
+                                ) %>% 
+  rename(cluster = ctree_payee_cc_k1000)
+
+
+str(payee_cc_df_k1000)
+View(payee_cc_df_k1000)
+
+
+payee_cc_cnts <- group_by(payee_cc_df_k1000,
+                          cluster
+                          ) %>% 
+  summarise(Cnt_Num = n(),
+            Cnt_Pct = Cnt_Num / nrow(payee_cc_df_k1000)
+            ) %>% 
+  arrange(desc(Cnt_Pct)
+          )
+
+str(payee_cc_cnts)
+View(payee_cc_cnts)
+
+
+payee_cc_df_k1000_cnts <- left_join(payee_cc_df_k1000,
+                                    payee_cc_cnts,
+                                    by = c("cluster" = "cluster")
+                                    )
+
+
+str(payee_cc_df_k1000_cnts)
+
+View(arrange(payee_cc_df_k1000_cnts,
+             desc(Cnt_Num),
+             cluster,
+             payee_cc
+             )
+     )
+
+```
+  
+    
+    Remove unneeded files.
+```{r}
+
+rm(list = ls(pattern = "payee_")
+   )
+
+rm(list = ls(pattern = "payeeFix")
+   )
+
+rm(fix_list1, fix_list2, hc, SpellingAdjust_Purpose)
+
+```
+
+
