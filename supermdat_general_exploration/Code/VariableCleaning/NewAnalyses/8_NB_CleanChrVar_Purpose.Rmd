@@ -61,8 +61,7 @@ sessionInfo()
 
 rm(AllQtrs)
 
-source(paste0(wd, "/Code/VariableCleaning/NewAnalyses/1_func_dist.R")
-       )
+source(paste0(wd, "/1_func_dist.R"))
 
 ```
   
@@ -176,8 +175,7 @@ View(filter(dist_purpose_NoSymbs,
     Next, source the function func_TopMisSpel to get common mis-spellings (based on hunspell::hunspell_check).
 ```{r}
 
-source(paste0(wd, "/Code/VariableCleaning/NewAnalyses/3_func_TopMisSpel.R")
-       )
+source(paste0(wd, "/3_func_TopMisSpel.R"))
 
 ```
   
@@ -483,12 +481,12 @@ SpellingAdjust_Purpose <-
 
 message("SpellingAdjust_Purpose")
 str(SpellingAdjust_Purpose)
-saveRDS(SpellingAdjust_Purpose, 
-        paste0(wd,
-               "/ProcessedData/",
-               "SpellingAdjust_Purpose.Rds"
-               )
-        )
+# saveRDS(SpellingAdjust_Purpose, 
+#         paste0(wd,
+#                "/ProcessedData/",
+#                "SpellingAdjust_Purpose.Rds"
+#                )
+#         )
 
 ```
   

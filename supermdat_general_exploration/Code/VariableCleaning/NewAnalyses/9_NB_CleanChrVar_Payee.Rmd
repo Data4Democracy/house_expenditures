@@ -91,8 +91,7 @@ select(SpellingAdjust_Purpose,
           Here, we load the function func_dist_ByFrstChr, which is based on the previously created function func_dist.
 ```{r}
 
-source(paste0(wd, "/Code/VariableCleaning/NewAnalyses/2_func_dist_ByFrstChr.R")
-       )
+source(paste0(wd, "/2_func_dist_ByFrstChr.R"))
 
 ```
   
@@ -152,8 +151,7 @@ View(head(payee_jw_dist_ByFrstChr_BlwPt1, 500))
         Next, source the function func_TopMisSpel to get common mis-spellings (based on hunspell::hunspell_check).
 ```{r}
 
-source(paste0(wd, "/Code/VariableCleaning/NewAnalyses/3_func_TopMisSpel.R")
-       )
+source(paste0(wd, "/3_func_TopMisSpel.R"))
 
 ```
   
@@ -284,11 +282,11 @@ payeeFix_jw_dist_ByFrstChr_BlwPt2 <- filter(payeeFix_jw_dist_ByFrstChr,
                                             ) %>%
   arrange(jw_score)
 
-saveRDS(payeeFix_jw_dist_ByFrstChr_BlwPt2,
-        paste0(wd,
-               "/ProcessedData/",
-               "payeeFix_jw_dist_ByFrstChr_BlwPt2.Rds")
-        )
+# saveRDS(payeeFix_jw_dist_ByFrstChr_BlwPt2,
+#         paste0(wd,
+#                "/ProcessedData/",
+#                "payeeFix_jw_dist_ByFrstChr_BlwPt2.Rds")
+#         )
 
 rm(payeeFix_jw_dist_ByFrstChr)
 str(payeeFix_jw_dist_ByFrstChr_BlwPt2)
@@ -421,11 +419,11 @@ SpellingAdjust_Payee <-
 
 message("SpellingAdjust_Payee")
 str(SpellingAdjust_Payee)
-saveRDS(SpellingAdjust_Payee,
-        paste0(wd,
-               "/ProcessedData/",
-               "SpellingAdjust_Payee.Rds")
-        )
+# saveRDS(SpellingAdjust_Payee,
+#         paste0(wd,
+#                "/ProcessedData/",
+#                "SpellingAdjust_Payee.Rds")
+#         )
 
 ```
   
