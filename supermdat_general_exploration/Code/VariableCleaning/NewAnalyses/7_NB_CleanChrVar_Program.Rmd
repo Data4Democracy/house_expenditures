@@ -61,8 +61,7 @@ sessionInfo()
 
 rm(AllQtrs)
 
-source(paste0(wd, "/Code/VariableCleaning/NewAnalyses/1_func_dist.R")
-       )
+source(paste0(wd, "/1_func_dist.R"))
 
 ```
   

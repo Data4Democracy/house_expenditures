@@ -59,8 +59,7 @@ sessionInfo()
     First, source the function to compute the distances (Jaro-Winker distance) between every pair of levels in a particular variable.
 ```{r}
 
-source(paste0(wd, "/Code/VariableCleaning/NewAnalyses/1_func_dist.R")
-       )
+source(paste0(wd, "/1_func_dist.R"))
 
 ```
   
