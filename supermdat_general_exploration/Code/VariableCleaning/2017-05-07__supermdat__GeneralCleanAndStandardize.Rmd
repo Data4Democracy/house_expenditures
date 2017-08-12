@@ -1,0 +1,312 @@
+---
+title: "R Notebook for US House Expenditures: General Data Cleaning"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook for exploration of US House Expenditures. Data were obtained from the ProPublica website here:  
+[ProPublica](https://projects.propublica.org/represent/expenditures)  
+  
+    
+    Setup the root directory.
+```{r "setup", include = FALSE}
+
+require("knitr")
+
+opts_knit$set(root.dir = "/Users/mdturse/Desktop/Analytics/house_expenditures/supermdat_general_exploration")
+
+```
+  
+    
+    Set "wd" as the working directory.
+```{r}
+
+wd <- getwd()
+wd
+
+```
+  
+    
+    Load the packages to be used.
+```{r, message=FALSE, warning=FALSE}
+
+library("tidyverse")          # data manipulation
+library("lazyeval")           # writing functions
+library("rlang")              # writing functions
+library("stringr")            # string manipulation
+library("lubridate")          # date manipulation
+library("stringdist")         # calculating string (character) distances
+library("tidytext")           # text manipulation
+library("hunspell")           # used for spell checking
+library("caret")              # used pre-processing the data
+library("factoextra")         # clustering
+library("cluster")            # clustering
+
+```
+  
+    
+    Session Info.
+```{r}
+
+sessionInfo()
+
+```
+  
+    
+    Get the data.  
+    
+  A generic example of the link is:  
+  [https://pp-projects-static.s3.amazonaws.com/congress/staffers/2016Q4-house-disburse-detail.csv](https://pp-projects-static.s3.amazonaws.com/congress/staffers/2016Q4-house-disburse-detail.csv)
+```{r, message=FALSE, warning=FALSE}
+
+url_prefix <- "https://pp-projects-static.s3.amazonaws.com/congress/staffers/"
+url_suffix <- "-house-disburse-detail.csv"
+
+for(i in 2011:2016){
+  for(j in 1:4){
+    assign("x",
+           read_csv(paste0(url_prefix,
+                           i,
+                           "Q",
+                           j,
+                           url_suffix
+                           )
+                    ) %>% 
+             mutate(data_download_datetime = Sys.time(),
+                    year_chr = as.character(YEAR)
+                    # year_chr is needed because sometimes YEAR is an integer in the original file (2013Q1 and 2014Q1) and sometimes it is a character
+                    ) %>% 
+             rename(START_DATE = `START DATE`,
+                    END_DATE = `END DATE`,
+                    RECIP_ORIG = `RECIP (orig.)`) %>% 
+             select(-YEAR)
+           )
+    
+    colnames(x) <- tolower(colnames(x)
+                           )
+    
+    message(paste0("df", i, "Q", j)
+            )
+    
+    str(x)
+    
+    assign(paste0("df", i, "Q", j),
+           x
+           )
+  }
+}
+
+```
+  
+    
+    Put the individual datasets together.
+```{r}
+
+rm(i, j, x)
+
+
+AllQtrs <- bind_rows(list(df2011Q1 = df2011Q1, df2011Q2 = df2011Q2, df2011Q3 = df2011Q3,
+                          df2011Q4 = df2011Q4, df2012Q1 = df2012Q1, df2012Q2 = df2012Q2,
+                          df2012Q3 = df2012Q3, df2012Q4 = df2012Q4, df2013Q1 = df2013Q1,
+                          df2013Q2 = df2013Q2, df2013Q3 = df2013Q3, df2013Q4 = df2013Q4,
+                          df2014Q1 = df2014Q1, df2014Q2 = df2014Q2, df2014Q3 = df2014Q3,
+                          df2014Q4 = df2014Q4, df2015Q1 = df2015Q1, df2015Q2 = df2015Q2,
+                          df2015Q3 = df2015Q3, df2015Q4 = df2015Q4, df2016Q1 = df2016Q1,
+                          df2016Q2 = df2016Q2, df2016Q3 = df2016Q3, df2016Q4 = df2016Q4
+                          ),
+                     .id = c("dataset_group")
+                     )
+
+rm(list = ls(pattern = "df201")
+   )
+
+# dim(AllQtrs)
+
+saveRDS(AllQtrs, paste0(wd,
+                        "/ProcessedData/",
+                        "AllQtrs.Rds"
+                        )
+        )
+
+str(AllQtrs)
+summary(AllQtrs)
+
+```
+  
+    
+    Update variable types.  
+      
+    Removing punctuation and multiple consecutive "spaces" from character variables, parsing and standardizing date variables.
+```{r}
+
+rm(list = ls(pattern = "url")
+   )
+
+func_removepunc <- function(x){
+  x <- str_replace_all(x,
+                       "[[:punct:]]",
+                       " "
+                       )
+}
+
+func_MultiSpaceToOne <- function(x){
+  x <- str_replace_all(x,
+                       "\\s+",
+                       " "
+                       )
+}
+
+AllQtrs_UpdateVars <- AllQtrs %>% 
+  mutate_if(is.character,
+            funs(tolower)
+            ) %>% 
+  mutate_if(is.character,
+            funs(func_removepunc)
+            ) %>% 
+  mutate_if(is.character,
+            funs(func_MultiSpaceToOne)
+            ) %>% 
+  mutate_if(is.character,
+            funs(str_trim)
+            ) %>%
+  mutate(date_clean = ifelse(nchar(date) == 5,
+                             paste0(date,
+                                    "-",
+                                    str_sub(quarter, 1, 4)
+                                    ),
+                      ifelse(nchar(date) == 7 |
+                               nchar(date == 8),
+                             paste0(str_sub(date, 1, (nchar(date)-2)
+                                            ),
+                                    "20",
+                                    str_sub(date, -2)
+                                    ),
+                             NA
+                             )),
+         date_clean_nchar = nchar(date_clean),
+         date_clean_nchar_factor = as.factor(date_clean_nchar),
+         date_mth = as.integer(str_sub(date_clean, 1, 2)),
+         date_day = as.integer(ifelse(nchar(date_clean) == 9,
+                                      str_sub(date_clean, 4, 4),
+                               ifelse(nchar(date_clean) == 10,
+                                      str_sub(date_clean, 4, 5),
+                                      NA
+                                      )
+                               )),
+         date_yr = as.integer(str_sub(date_clean, -4)),
+         date_sep1 = as.factor(ifelse(is.na(date_clean),
+                                      NA,
+                                      str_sub(date_clean, 3, 3)
+                                      )
+                               ),
+         date_sep2 = as.factor(ifelse(is.na(date_clean),
+                                      NA,
+                               ifelse(nchar(date_clean) == 9,
+                                      str_sub(date_clean, 5, 5),
+                                      str_sub(date_clean, 6, 6)
+                                      ))
+                               ),
+         quarter_clean = as.factor(str_sub(quarter, -2)
+                                   ),
+         year_clean = as.factor(str_replace_all(year_chr,
+                                                "FISCAL YEAR ",
+                                                ""
+                                                )
+                                ),
+         start_date = mdy(start_date),
+         end_date = mdy(end_date),
+         office_factor = as.factor(office),
+         category_factor = as.factor(category),
+         purpose_factor = as.factor(purpose),
+         transcode_factor = as.factor(transcode),
+         transcodelong_factor = as.factor(transcodelong),
+         purpose_factor = as.factor(purpose),
+         recip_orig_factor = as.factor(recip_orig),
+         payee_factor = as.factor(payee),
+         program_factor = as.factor(program),
+         dataset_group_factor = as.factor(dataset_group),
+         date_clean_ymd = mdy(date_clean),
+         RowNum = row_number()
+         ) %>% 
+  select( RowNum,
+          data_download_datetime,
+          # dataset_group,
+          dataset_group_factor,
+          recordid,
+          bioguide_id,
+          category,
+          category_factor,
+          # date,
+          # date_clean,
+          # date_clean_nchar,
+          # date_clean_nchar_factor,
+          date_clean_ymd,
+          date_yr,
+          date_mth,
+          date_day,
+          # date_sep1,
+          # date_sep2,
+          # year_chr,
+          year_clean,
+          # quarter,
+          quarter_clean,
+          start_date,
+          end_date,
+          transcode,
+          transcode_factor,
+          transcodelong,
+          transcodelong_factor,
+          office,
+          office_factor,
+          purpose,
+          purpose_factor,
+          program,
+          program_factor,
+          payee,
+          payee_factor,
+          recip_orig,
+          recip_orig_factor,
+          amount
+        )
+
+
+rm(list = ls(pattern = "func")
+   )
+
+
+message("AllQtrs")
+str(AllQtrs)
+message("AllQtrs_UpdateVars")
+str(AllQtrs_UpdateVars)
+
+message("AllQtrs")
+summary(AllQtrs)
+message("AllQtrs_UpdateVars")
+summary(AllQtrs_UpdateVars)
+
+```
+
+
+```{r}
+
+distinct(AllQtrs,
+         payee
+         ) %>% 
+  mutate(payee_FrstChr = substr(payee, 1, 1)
+         ) %>%
+  arrange(payee) %>% 
+  filter(!is.na(payee_FrstChr)
+         )
+
+
+distinct(AllQtrs_UpdateVars,
+         payee
+         ) %>% 
+  mutate(payee_FrstChr = substr(payee, 1, 1)
+         ) %>%
+  arrange(payee) %>% 
+  filter(!is.na(payee_FrstChr)
+         )
+
+```
+
+
