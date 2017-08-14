@@ -1,0 +1,145 @@
+---
+title: "R Notebook for Exploration of US House Expenditures: 'office' variable"
+output: html_notebook
+---
+  
+    
+    This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook for exploration of US House Expenditures. Data were obtained from the ProPublica website here:  
+[ProPublica](https://projects.propublica.org/represent/expenditures)  
+  
+    
+    The code below is for cleaning the variable: office
+  
+    
+    Setup the root directory.
+```{r "setup", include = FALSE}
+
+require("knitr")
+
+opts_knit$set(root.dir = "/Users/mdturse/Desktop/Analytics/house_expenditures/supermdat_general_exploration")
+
+```
+  
+    
+    Set "wd" as the working directory.
+```{r}
+
+wd <- getwd()
+wd
+
+```
+  
+    
+    Load the packages to be used.
+```{r, message=FALSE, warning=FALSE}
+
+library("tidyverse")          # data manipulation
+library("lazyeval")           # writing functions
+library("rlang")              # writing functions
+library("stringr")            # string manipulation
+library("lubridate")          # date manipulation
+library("stringdist")         # calculating string (character) distances
+library("tidytext")           # text manipulation
+library("hunspell")           # used for spell checking
+# library("caret")              # used pre-processing the data
+library("factoextra")         # clustering
+library("cluster")            # clustering
+
+```
+  
+    
+    Session Info.
+```{r}
+
+sessionInfo()
+
+```
+  
+    
+    First, source the function to compute the distances (Jaro-Winker distance) between every pair of levels in a particular variable.
+```{r}
+
+source(paste0(wd, "/1_func_dist.R"))
+
+```
+  
+    
+    Explore distances for the variable: office
+```{r}
+
+rm(dist_category)
+
+dist_office <- func_dist(data_ = AllQtrs_UpdateVars,
+                         var_ = office,
+                         method_ = "jw",
+                         p = 0.1
+                         )
+
+nrow(select(distinct(AllQtrs_UpdateVars,
+                     office
+                     )
+            )
+     )
+
+View(dist_office)
+
+View(filter(dist_office,
+            jw_score <= 0.1
+            ) %>% 
+       arrange(jw_score)
+     )
+
+```
+  
+    
+    Create a lookup table for spelling variants: office
+```{r}
+
+LookupOffice <- data.frame(goodspell = c("new members orientation", "hon patrick j murphy", "hon vern g buchanan", "hon doris o matsui", "hon mike j rogers", "hon nita m lowey", "hon paul d tonko", "hon rush d holt", "hon paul d ryan", "hon theodore e deutch", "hon xavier becerra", "hon richard e neal", "hon nick j rahall ii", "hon jason t smith"
+                                         ),
+                           badspell = c("new member orientation", "hon patrick murphy", "hon vern buchanan", "hon doris matsui", "hon mike rogers", "hon nita n lowey", "hon paul tonko", "hon rush holt", "hon paul ryan", "hon theodore deutch", "hon xavier becarra", "hon richard r neal", "hon nick j ii rahall", "hon jason smith"
+                                        ),
+                           stringsAsFactors = FALSE
+                           ) %>% 
+  mutate(rownum = 1:nrow(.),
+         variable_og = "office"
+         ) %>% 
+  select(variable_og, rownum, goodspell, badspell)
+
+str(LookupOffice)
+View(LookupOffice)
+LookupOffice
+
+```
+  
+    
+    Update spelling for "office" variable.
+```{r}
+
+message("AllQtrs_UpdateVars")
+str(AllQtrs_UpdateVars$office_factor)
+
+SpellingAdjust_Office <- left_join(AllQtrs_UpdateVars,
+                                   select(LookupOffice,
+                                          badspell,
+                                          goodspell
+                                          ),
+                                   by = c("office" = "badspell")
+                                   ) %>% 
+  mutate(office_cc = ifelse(is.na(goodspell),
+                            office,
+                            goodspell
+                            ),
+         office_cc_factor = as.factor(office_cc)
+         ) %>% 
+  select(-office, -office_factor, -goodspell)
+  
+message("SpellingAdjust_Office")
+str(SpellingAdjust_Office$office_cc_factor)
+
+message("SpellingAdjust_Office")
+str(SpellingAdjust_Office)
+
+```
+
+

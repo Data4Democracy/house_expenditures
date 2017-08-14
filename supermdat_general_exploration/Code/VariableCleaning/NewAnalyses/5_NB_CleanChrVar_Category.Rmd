@@ -1,0 +1,93 @@
+---
+title: "R Notebook for Exploration of US House Expenditures: 'category' variable"
+output: html_notebook
+---
+  
+    
+    This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook for exploration of US House Expenditures. Data were obtained from the ProPublica website here:  
+[ProPublica](https://projects.propublica.org/represent/expenditures)  
+  
+    
+    The code below is for cleaning the variable: category
+  
+    
+    Setup the root directory.
+```{r "setup", include = FALSE}
+
+require("knitr")
+
+opts_knit$set(root.dir = "/Users/mdturse/Desktop/Analytics/house_expenditures/supermdat_general_exploration")
+
+```
+  
+    
+    Set "wd" as the working directory.
+```{r}
+
+wd <- getwd()
+wd
+
+```
+  
+    
+    Load the packages to be used.
+```{r, message=FALSE, warning=FALSE}
+
+library("tidyverse")          # data manipulation
+library("lazyeval")           # writing functions
+library("rlang")              # writing functions
+library("stringr")            # string manipulation
+library("lubridate")          # date manipulation
+library("stringdist")         # calculating string (character) distances
+library("tidytext")           # text manipulation
+library("hunspell")           # used for spell checking
+# library("caret")              # used pre-processing the data
+library("factoextra")         # clustering
+library("cluster")            # clustering
+
+```
+  
+    
+    Session Info.
+```{r}
+
+sessionInfo()
+
+```
+  
+    
+    First, source the function to compute the distances (Jaro-Winker distance) between every pair of levels in a particular variable.
+```{r}
+
+source(paste0(wd, "/1_func_dist.R"))
+
+```
+  
+    
+    Explore distances for the variable: category  
+      
+    Doesn't look like there are any spelling variants.
+```{r}
+
+dist_category <- func_dist(data_ = AllQtrs_UpdateVars, #testingtesting,
+                           var_ = category, #"category2",
+                           method_ = "jw",
+                           p = 0.1
+                           )
+
+
+nrow(select(distinct(AllQtrs_UpdateVars,
+                     category
+                     )
+            )
+     )
+
+dist_category
+
+filter(dist_category,
+       jw_score <= 0.1
+       )
+
+```
+
+
