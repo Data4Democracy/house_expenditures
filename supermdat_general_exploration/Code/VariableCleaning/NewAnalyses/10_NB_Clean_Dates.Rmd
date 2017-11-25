@@ -1,0 +1,246 @@
+---
+title: "R Notebook for Exploration of US House Expenditures: 'purpose' variable"
+output: html_notebook
+---
+  
+    
+  This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook for exploration of US House Expenditures. Data were obtained from the ProPublica website here:  
+[ProPublica](https://projects.propublica.org/represent/expenditures)  
+  
+  
+  The code below is for cleaning date variables. This clean-up uses `SpellingAdjust_Payee` as the base dataset to begin the work. `SpellingAdjust_Payee` was created in the previous clean-up R Notebook `9_NB_CleanChrVar_Payee.Rmd`.
+  
+    
+    Setup the root directory.
+```{r "setup", include = FALSE}
+
+require("knitr")
+
+opts_knit$set(root.dir = "/Users/mdturse/Desktop/Analytics/house_expenditures/supermdat_general_exploration")
+
+```
+  
+    
+    Set "wd" as the working directory.
+```{r}
+
+wd <- getwd()
+wd
+
+```
+  
+    
+    Load the packages to be used.
+```{r, message=FALSE, warning=FALSE}
+
+library("tidyverse")          # data manipulation
+library("lubridate")          # date manipulation
+
+```
+  
+    
+    Session Info.
+```{r}
+
+sessionInfo()
+
+```
+  
+    
+    First, we'll just load in the dataset and do a quick inspection.
+```{r}
+
+SpellingAdjust_Payee <- readRDS(paste0(wd,
+                                       "/ProcessedData/",
+                                       "SpellingAdjust_Payee.Rds"
+                                       )
+                                )
+
+
+message("SpellingAdjust_Payee")
+dim(SpellingAdjust_Payee)
+str(SpellingAdjust_Payee)
+summary(SpellingAdjust_Payee)
+
+```
+  
+    
+    Now realizing that the `date_clean_ymd` needs some manipulation as it has 352,962 values that are NA. We can probably use `start_date` as it has only 8 values that are NA, but this first needs to be cleaned as the extreme dates (e.g. 2061-06-01) make it appear that this is a manually typed value.
+```{r}
+
+date_vars <- c("date_clean_ymd",
+               "date_yr",
+               "date_mth",
+               "date_day",
+               "year_clean",
+               "quarter_clean",
+               "start_date"
+               )
+
+select(SpellingAdjust_Payee,
+       date_vars
+       ) %>%
+  head(500)
+
+
+
+message("JustDateVars")
+select(SpellingAdjust_Payee,
+       date_vars
+       ) %>% 
+  summary()
+
+```
+  
+    
+    Inspecting if we can really use `start_date` to fill in for `date_clean_ymd` when `date_clean_ymd` is NA.  
+      
+      Looks to be ok to use as the basic summary statistics and a visual inspection of the density plot look to be very close.
+```{r}
+
+DatesAll <- select(SpellingAdjust_Payee,
+                   start_date
+                   ) %>% 
+  mutate(type = "DatesAll")
+
+DatesNA <- filter(SpellingAdjust_Payee,
+                  is.na(date_clean_ymd)
+                  ) %>% 
+  select(start_date) %>% 
+  mutate(type = "DatesNA")
+
+
+DateToPlot <- rbind(DatesAll, DatesNA)
+
+rm(DatesAll, DatesNA)
+str(DateToPlot)
+
+
+message("DatesAll")
+filter(DateToPlot,
+       type == "DatesAll"
+       ) %>% 
+  select(start_date) %>% 
+  summary()
+
+message("DatesNA")
+filter(DateToPlot,
+       type == "DatesNA"
+       ) %>% 
+  select(start_date) %>% 
+  summary()
+
+
+DatesAllQuantile <- as.Date(quantile(as.numeric(filter(DateToPlot,
+                                   type == "DatesAll"
+                                   )$start_date
+                            ),
+                            probs = seq(0, 1, 0.1),
+                            type = 1,
+                            na.rm = TRUE
+                            ),
+                            origin = "1970-01-01"
+                            )
+
+DatesNAQuantile <- 
+  as.Date(quantile(as.numeric(filter(DateToPlot,
+                                     type == "DatesNA"
+                                     )$start_date
+                              ),
+                   probs = seq(0, 1, 0.1),
+                   type = 1,
+                   na.rm = TRUE
+                   ),
+          origin = "1970-01-01"
+          )
+
+QuantileCompare <- cbind(DatesAllQuantile, DatesNAQuantile) %>% 
+  as.data.frame() %>% 
+  rownames_to_column(var = "QuantileLevel") %>% 
+  mutate_at(vars(DatesAllQuantile, DatesNAQuantile),
+            funs(d2 = as.Date(.,
+                              origin = "1970-01-01")
+                 )
+            ) %>% 
+  select(-DatesAllQuantile,
+         -DatesNAQuantile
+         )
+
+QuantileCompare
+View(QuantileCompare)
+
+rm(DatesAllQuantile, DatesNAQuantile)
+
+
+ggplot(DateToPlot,
+       aes(x = start_date,
+           # y = ..density..,
+           fill = type
+           )
+       ) +
+  geom_density(alpha = 0.25, na.rm = TRUE) +
+  coord_cartesian(xlim = c(as.Date("2010-01-01"), as.Date("2016-12-31")
+                           )
+                  ) +
+  labs(title = "Density Comparision of start_date",
+       subtitle = "Data (all) vs. Data (when date_clean_ymd is NA)") +
+  theme_minimal()
+
+```
+  
+    
+    So now let's update `date_clean_ymd` with `start_date`.
+```{r}
+
+message("SpellingAdjust_Payee")
+str(SpellingAdjust_Payee)
+
+DateClean <- SpellingAdjust_Payee %>% 
+  mutate(date_clean_ymd_CLEAN = ifelse(is.na(date_clean_ymd),
+                                       start_date,
+                                       date_clean_ymd
+                                       ) %>% 
+           as.Date(origin = "1970-01-01"),
+         date_yr_CLEAN = ifelse(is.na(date_yr),
+                                year(date_clean_ymd_CLEAN),
+                                date_yr
+                                ) %>% 
+           as.integer(),
+         date_mth_CLEAN = ifelse(is.na(date_mth),
+                                 month(date_clean_ymd_CLEAN,
+                                       label = FALSE
+                                       ),
+                                 date_mth
+                                 ) %>% 
+           as.integer(),
+         date_day_CLEAN = ifelse(is.na(date_day),
+                                day(date_clean_ymd_CLEAN),
+                                date_day
+                                ) %>% 
+           as.integer()
+         )
+
+
+message("DateClean")
+select(DateClean,
+       matches("date")
+       ) %>% 
+  str()
+
+message("DateClean")
+select(DateClean,
+       matches("date")
+       ) %>% 
+  summary()
+
+```
+  
+    
+    Remove unneeded files.
+```{r}
+
+rm(SpellingAdjust_Payee, DateToPlot, date_vars, QuantileCompare)
+
+```
+
+
