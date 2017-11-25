@@ -234,6 +234,18 @@ select(DateClean,
   summary()
 
 ```
+
+
+    Save the `DateClean` dataset.
+```{r}
+
+saveRDS(DateClean, paste0(wd,
+                        "/ProcessedData/",
+                        "DateClean.Rds"
+                        )
+        )
+
+```
   
     
     Remove unneeded files.
